@@ -8,24 +8,22 @@ import json
 import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.pest_classifier import PestClassifier
+from models.pest_classifier import PestClassifier, get_model_summary
 from src.data_loader import PestDataLoader
 
-def train_jpg_model():
-    """Train model specifically on JPG pest images"""
+def train_custom_cnn():
+    """Train custom CNN model on JPG pest images"""
     
-    print("🚀 Starting JPG Pest Classification Training")
+    print("🚀 Starting Custom CNN Pest Classification Training")
     print("=" * 60)
     
-    # Configuration
     config = {
-        'data_dir': 'dataset',
+        'data_dir': 'datasets', # Directory containing training data
         'model_save_path': 'models/saved_models',
-        'epochs': 25,
-        'learning_rate': 0.001,
-        'batch_size': 32,
-        'img_size': 224,
-        'model_name': 'efficientnet_b0'  # Good for pest classification
+        'epochs': 30,  # Number of training epochs
+        'learning_rate': 0.001, # Initial learning rate
+        'batch_size': 32, # Batch size for training
+        'img_size': 224 # Input image size (224x224 for ResNet-like models)
     }
     
     # Create save directory
@@ -51,13 +49,18 @@ def train_jpg_model():
     print(f"   Batch size: {config['batch_size']}")
     print(f"   Learning rate: {config['learning_rate']}")
     
-    # Model
-    model = PestClassifier(num_classes, config['model_name']).to(device)
+    # Model - NO model_name parameter
+    model = PestClassifier(num_classes).to(device)
+    
+    # Print model info
+    print(f"\n{get_model_summary(model)}")
+    
+    # Loss and optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=config['learning_rate'], weight_decay=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'], weight_decay=1e-4)
     
     # Learning rate scheduler
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=3, factor=0.5)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
     
     # Training loop
     best_val_acc = 0.0
@@ -116,14 +119,14 @@ def train_jpg_model():
                 val_total += labels.size(0)
                 val_correct += (predicted == labels).sum().item()
         
+        # Step scheduler
+        scheduler.step()
+        
         # Calculate metrics
         train_acc = 100 * train_correct / train_total
         val_acc = 100 * val_correct / val_total
         avg_train_loss = train_loss / len(train_loader)
         avg_val_loss = val_loss / len(val_loader)
-        
-        # Update learning rate
-        scheduler.step(val_acc)
         
         # Save metrics
         training_history['train_acc'].append(train_acc)
@@ -154,7 +157,8 @@ def train_jpg_model():
         'num_classes': num_classes,
         'best_val_acc': best_val_acc,
         'config': config,
-        'training_history': training_history
+        'training_history': training_history,
+        'model_type': 'CustomCNN'
     }
     
     with open(f"{config['model_save_path']}/classes.json", 'w') as f:
@@ -166,4 +170,4 @@ def train_jpg_model():
     print(f"💾 Model and training info saved to {config['model_save_path']}/")
 
 if __name__ == "__main__":
-    train_jpg_model()
+    train_custom_cnn()
