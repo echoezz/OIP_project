@@ -17,11 +17,15 @@ class OriginalDataset(Dataset):
         self.labels = []
         self.classes = []
         
-        # Load class names
+        # Load class names (filter out empty directories)
         for class_name in sorted(os.listdir(data_dir)):
             class_path = os.path.join(data_dir, class_name)
             if os.path.isdir(class_path):
-                self.classes.append(class_name)
+                # Check if directory has images
+                image_files = [f for f in os.listdir(class_path) 
+                             if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+                if len(image_files) > 0:  # Only add classes with images
+                    self.classes.append(class_name)
         
         # Load images and labels
         for class_idx, class_name in enumerate(self.classes):
@@ -137,8 +141,14 @@ class PestDataLoader:
         original_dataset = OriginalDataset(self.data_dir)
         classes = original_dataset.classes
         
+        if len(classes) == 0:
+            raise ValueError("No valid classes found in dataset directory!")
+        
         # Split into train and validation indices
         dataset_size = len(original_dataset)
+        if dataset_size == 0:
+            raise ValueError("No images found in dataset!")
+            
         indices = list(range(dataset_size))
         np.random.shuffle(indices)
         
@@ -191,7 +201,7 @@ class PestDataLoader:
         return train_loader, val_loader, classes
     
     def analyze_dataset_balance(self):
-        """Analyze class distribution in dataset"""
+        """Analyze class distribution in dataset (fixed for empty folders)"""
         class_counts = {}
         
         for class_name in os.listdir(self.data_dir):
@@ -199,17 +209,22 @@ class PestDataLoader:
             if os.path.isdir(class_path):
                 count = len([f for f in os.listdir(class_path) 
                            if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
-                class_counts[class_name] = count
+                if count > 0:  # Only include classes with images
+                    class_counts[class_name] = count
         
         print("📊 Class Distribution:")
+        if not class_counts:
+            print("   ❌ No images found in any class directories!")
+            return {}
+            
         total_images = sum(class_counts.values())
         for class_name, count in sorted(class_counts.items()):
             percentage = (count / total_images) * 100
             print(f"   {class_name}: {count} images ({percentage:.1f}%)")
         
-        # Check for imbalanced classes
+        # Check for imbalanced classes (only if we have classes)
         counts = list(class_counts.values())
-        if max(counts) / min(counts) > 3:
+        if counts and max(counts) / min(counts) > 3:
             print("⚠️  Warning: Significant class imbalance detected!")
             print("   Consider collecting more data for underrepresented classes")
         
@@ -244,10 +259,14 @@ def get_simple_data_loaders(data_dir: str, batch_size: int = 16, validation_spli
             self.labels = []
             self.classes = []
             
+            # Only include directories with images
             for class_name in sorted(os.listdir(data_dir)):
                 class_path = os.path.join(data_dir, class_name)
                 if os.path.isdir(class_path):
-                    self.classes.append(class_name)
+                    image_files = [f for f in os.listdir(class_path) 
+                                 if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+                    if len(image_files) > 0:
+                        self.classes.append(class_name)
             
             for class_idx, class_name in enumerate(self.classes):
                 class_path = os.path.join(data_dir, class_name)
@@ -273,6 +292,9 @@ def get_simple_data_loaders(data_dir: str, batch_size: int = 16, validation_spli
     # Create dataset
     full_dataset = SimpleDataset(data_dir)
     classes = full_dataset.classes
+    
+    if len(classes) == 0:
+        raise ValueError("No valid classes with images found!")
     
     # Split dataset
     dataset_size = len(full_dataset)
