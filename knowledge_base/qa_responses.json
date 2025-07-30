@@ -1,0 +1,30 @@
+{
+  "general_prevention": {
+    "question": "How can I prevent pest problems organically?",
+    "answer": "🛡️ **Organic Pest Prevention Strategies:**\n\n• **Companion Planting:** Use marigolds, nasturtiums, and herbs to repel pests\n• **Beneficial Insects:** Plant diverse flowers to attract ladybugs, lacewings, and parasitic wasps\n• **Healthy Soil:** Maintain good soil health with compost and organic matter\n• **Crop Rotation:** Rotate plant families annually to break pest cycles\n• **Regular Monitoring:** Inspect plants weekly for early pest detection\n• **Proper Spacing:** Ensure good air circulation to prevent fungal issues\n• **Natural Barriers:** Use row covers, copper strips, or diatomaceous earth"
+  },
+  "organic_treatments": {
+    "question": "What are the best organic pest treatments?",
+    "answer": "🌿 **Top Organic Pest Treatments:**\n\n• **Insecticidal Soap:** Mix 2 tbsp mild soap per quart water for soft-bodied insects\n• **Neem Oil:** Natural pesticide effective against many pests\n• **Bacillus thuringiensis (Bt):** Biological control for caterpillars\n• **Diatomaceous Earth:** Food-grade DE for crawling insects\n• **Beneficial Insects:** Release ladybugs, lacewings, or predatory mites\n• **Essential Oil Sprays:** Peppermint, rosemary, or garlic sprays\n• **Physical Removal:** Hand-picking larger pests like caterpillars"
+  },
+  "timing": {
+    "question": "When should I apply organic treatments?",
+    "answer": "⏰ **Optimal Treatment Timing:**\n\n• **Early Morning (6-9 AM):** Best for most spray applications when beneficial insects are less active\n• **Evening (6-8 PM):** Good alternative to morning, avoid midday heat\n• **Weekly Monitoring:** Check plants every 7 days for early detection\n• **Weather Considerations:** Apply before rain but not in windy conditions\n• **Pest Lifecycle:** Target treatments during vulnerable pest stages\n• **Seasonal Timing:** Start prevention in early spring before pest populations build"
+  },
+  "companion_planting": {
+    "question": "What companion plants help with pest control?",
+    "answer": "🌸 **Pest-Repelling Companion Plants:**\n\n• **Marigolds:** Repel aphids, whiteflies, and nematodes\n• **Nasturtiums:** Trap crop for aphids and cucumber beetles\n• **Basil:** Deters aphids, spider mites, and thrips\n• **Mint:** Repels ants, mice, and cabbage moths\n• **Chives:** Keep aphids away from roses and vegetables\n• **Catnip:** More effective than DEET against mosquitoes\n• **Lavender:** Repels moths, fleas, and mosquitoes\n• **Garlic:** Natural fungicide and pest deterrent"
+  },
+  "beneficial_insects": {
+    "question": "How do I attract beneficial insects?",
+    "answer": "🐞 **Attracting Beneficial Insects:**\n\n• **Diverse Flowering Plants:** Plant flowers that bloom throughout the season\n• **Native Plants:** Use indigenous species that local beneficials prefer\n• **Herb Gardens:** Let herbs like dill, fennel, and cilantro flower\n• **Avoid Pesticides:** Even organic sprays can harm beneficial insects\n• **Provide Shelter:** Leave some areas undisturbed for overwintering\n• **Water Sources:** Shallow dishes or plant saucers for drinking\n• **Purchase Releases:** Buy ladybugs, lacewings, or parasitic wasps when needed"
+  },
+  "organic_principles": {
+    "question": "What are the principles of organic pest management?",
+    "answer": "🌱 **Organic Pest Management Principles:**\n\n• **Prevention First:** Focus on preventing problems rather than treating them\n• **Build Soil Health:** Healthy plants are more resistant to pests\n• **Encourage Biodiversity:** Create balanced ecosystems in your garden\n• **Use Least Toxic Methods:** Start with gentlest approaches first\n• **Target Specific Pests:** Avoid broad-spectrum treatments that harm beneficials\n• **Monitor Regularly:** Early detection makes treatment more effective\n• **Work with Nature:** Support natural predator-prey relationships"
+  },
+  "seasonal_care": {
+    "question": "How should I manage pests seasonally?",
+    "answer": "📅 **Seasonal Pest Management:**\n\n**🌸 Spring:**\n• Clean up garden debris\n• Apply beneficial nematodes to soil\n• Start companion planting\n• Begin weekly monitoring\n\n**☀️ Summer:**\n• Increase watering during hot spells\n• Apply treatments in early morning\n• Release beneficial insects\n• Harvest regularly to remove pest habitat\n\n**🍂 Fall:**\n• Clean up fallen leaves and debris\n• Plant cover crops\n• Mulch to suppress overwintering pests\n• Plan next year's companion plants\n\n**❄️ Winter:**\n• Order beneficial insects for spring\n• Plan garden layout for pest prevention\n• Maintain garden tools and equipment"
+  }
+}

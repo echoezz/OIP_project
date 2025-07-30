@@ -2,125 +2,101 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional
+import numpy as np
 
-class CustomCNN(nn.Module):
+class FocusedCNN(nn.Module):
+    """Focused CNN designed for small datasets with attention mechanism"""
     
-    def __init__(self, num_classes: int, input_channels: int = 3):
-        super(CustomCNN, self).__init__()
+    def __init__(self, num_classes: int):
+        super(FocusedCNN, self).__init__()
         self.num_classes = num_classes
         
-        # First Convolutional Block
-        self.conv1 = nn.Conv2d(input_channels, 32, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(32)
-        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(32)
-        self.pool1 = nn.MaxPool2d(2, 2)  # 224x224 -> 112x112
-        self.dropout1 = nn.Dropout2d(0.25)
+        # Feature extraction with residual-style blocks
+        self.conv_block1 = self._make_conv_block(3, 32)
+        self.conv_block2 = self._make_conv_block(32, 64)
+        self.conv_block3 = self._make_conv_block(64, 128)
+        self.conv_block4 = self._make_conv_block(128, 256)
         
-        # Second Convolutional Block
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(64)
-        self.conv4 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
-        self.bn4 = nn.BatchNorm2d(64)
-        self.pool2 = nn.MaxPool2d(2, 2)  # 112x112 -> 56x56
-        self.dropout2 = nn.Dropout2d(0.25)
+        # Attention mechanism for feature focusing
+        self.attention = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(256, 256//16, 1),
+            nn.ReLU(),
+            nn.Conv2d(256//16, 256, 1),
+            nn.Sigmoid()
+        )
         
-        # Third Convolutional Block
-        self.conv5 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.bn5 = nn.BatchNorm2d(128)
-        self.conv6 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
-        self.bn6 = nn.BatchNorm2d(128)
-        self.pool3 = nn.MaxPool2d(2, 2)  # 56x56 -> 28x28
-        self.dropout3 = nn.Dropout2d(0.3)
-        
-        # Fourth Convolutional Block
-        self.conv7 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
-        self.bn7 = nn.BatchNorm2d(256)
-        self.conv8 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.bn8 = nn.BatchNorm2d(256)
-        self.pool4 = nn.MaxPool2d(2, 2)  # 28x28 -> 14x14
-        self.dropout4 = nn.Dropout2d(0.3)
-        
-        # Global Average Pooling
-        self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-        
-        # Fully Connected Layers
-        self.fc1 = nn.Linear(256, 512)
-        self.bn_fc1 = nn.BatchNorm1d(512)
-        self.dropout_fc1 = nn.Dropout(0.5)
-        
-        self.fc2 = nn.Linear(512, 256)
-        self.bn_fc2 = nn.BatchNorm1d(256)
-        self.dropout_fc2 = nn.Dropout(0.3)
-        
-        # Output layer
-        self.fc_out = nn.Linear(256, num_classes)
+        # Global pooling and classifier
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
+        self.classifier = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, num_classes)
+        )
         
         # Initialize weights
         self._initialize_weights()
+        
+    def _make_conv_block(self, in_channels, out_channels):
+        """Create a convolutional block with residual-style architecture"""
+        return nn.Sequential(
+            # First conv
+            nn.Conv2d(in_channels, out_channels, 3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            
+            # Second conv (residual style)
+            nn.Conv2d(out_channels, out_channels, 3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            
+            # Pooling and dropout
+            nn.MaxPool2d(2),
+            nn.Dropout2d(0.25)
+        )
     
     def _initialize_weights(self):
-        """Initialize network weights"""
+        """Initialize network weights with Xavier initialization"""
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.xavier_normal_(m.weight)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.xavier_normal_(m.weight)
                 nn.init.constant_(m.bias, 0)
     
     def forward(self, x):
-        # First block
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = self.pool1(x)
-        x = self.dropout1(x)
+        # Feature extraction
+        x1 = self.conv_block1(x)  # 112x112
+        x2 = self.conv_block2(x1) # 56x56
+        x3 = self.conv_block3(x2) # 28x28
+        x4 = self.conv_block4(x3) # 14x14
         
-        # Second block
-        x = F.relu(self.bn3(self.conv3(x)))
-        x = F.relu(self.bn4(self.conv4(x)))
-        x = self.pool2(x)
-        x = self.dropout2(x)
+        # Apply attention mechanism
+        attention = self.attention(x4)
+        x4 = x4 * attention
         
-        # Third block
-        x = F.relu(self.bn5(self.conv5(x)))
-        x = F.relu(self.bn6(self.conv6(x)))
-        x = self.pool3(x)
-        x = self.dropout3(x)
-        
-        # Fourth block
-        x = F.relu(self.bn7(self.conv7(x)))
-        x = F.relu(self.bn8(self.conv8(x)))
-        x = self.pool4(x)
-        x = self.dropout4(x)
-        
-        # Global average pooling
-        x = self.global_avg_pool(x)
-        x = x.view(x.size(0), -1)  # Flatten
-        
-        # Fully connected layers
-        x = F.relu(self.bn_fc1(self.fc1(x)))
-        x = self.dropout_fc1(x)
-        
-        x = F.relu(self.bn_fc2(self.fc2(x)))
-        x = self.dropout_fc2(x)
-        
-        # Output
-        x = self.fc_out(x)
+        # Global pooling and classification
+        x = self.global_pool(x4)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
         
         return x
 
 class PestClassifier(nn.Module):
-    """Main pest classifier using custom CNN"""
+    """Main pest classifier using focused CNN"""
     
     def __init__(self, num_classes: int):
         super(PestClassifier, self).__init__()
         self.num_classes = num_classes
-        self.model = CustomCNN(num_classes)
+        self.model = FocusedCNN(num_classes)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)
@@ -131,7 +107,7 @@ class PestClassifier(nn.Module):
         trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         
         return {
-            'model_name': 'CustomCNN',
+            'model_name': 'FocusedCNN',
             'num_classes': self.num_classes,
             'total_parameters': total_params,
             'trainable_parameters': trainable_params,
@@ -140,7 +116,7 @@ class PestClassifier(nn.Module):
 
 # Utility functions
 def create_model(num_classes: int) -> PestClassifier:
-    """Create a custom CNN pest classifier model"""
+    """Create a focused CNN pest classifier model"""
     return PestClassifier(num_classes)
 
 def load_model(model_path: str, num_classes: int) -> PestClassifier:
@@ -158,10 +134,10 @@ def get_model_summary(model: PestClassifier) -> str:
     info = model.get_model_info()
     
     summary = f"""
-🤖 **Custom CNN Pest Classifier Summary**
+🤖 **Focused CNN Pest Classifier Summary**
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📋 **Model Architecture:** Custom CNN (Built from Scratch)
+📋 **Model Architecture:** Focused CNN with Attention
 🎯 **Number of Classes:** {info['num_classes']}
 ⚙️  **Total Parameters:** {info['total_parameters']:,}
 🔧 **Trainable Parameters:** {info['trainable_parameters']:,}
@@ -169,10 +145,13 @@ def get_model_summary(model: PestClassifier) -> str:
 
 🏗️ **Architecture Details:**
    • 4 Convolutional Blocks (32→64→128→256 channels)
+   • Attention mechanism for feature focusing
    • Batch Normalization + Dropout for regularization
    • Global Average Pooling
-   • 2 Fully Connected layers (512→256→classes)
+   • 2 Fully Connected layers (256→128→classes)
    • ReLU activations throughout
+
+🎯 **Optimized for Small Datasets**
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """

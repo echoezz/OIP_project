@@ -1,0 +1,236 @@
+{
+  "aphids": {
+    "name": "Aphids",
+    "description": "Small, soft-bodied insects that feed on plant sap. Usually green, black, or white in color.",
+    "identification": [
+      "Small (1-4mm) soft-bodied insects",
+      "Cluster on new growth, stems, and leaves",
+      "Green, black, white, or gray colored",
+      "Often found with sticky honeydew secretions",
+      "May have winged or wingless forms"
+    ],
+    "damage": [
+      "Yellowing and curling of leaves",
+      "Stunted plant growth",
+      "Sticky honeydew on leaves",
+      "Sooty mold development",
+      "Transmission of plant viruses"
+    ],
+    "organic_treatments": [
+      "Spray with insecticidal soap solution",
+      "Use neem oil spray",
+      "Introduce ladybugs and lacewings",
+      "Blast off with strong water spray",
+      "Apply diatomaceous earth around plants"
+    ],
+    "prevention": [
+      "Plant companion plants like marigolds and nasturtiums",
+      "Encourage beneficial insects with diverse plantings",
+      "Avoid over-fertilizing with nitrogen",
+      "Remove weeds that harbor aphids",
+      "Use reflective mulch to confuse aphids"
+    ],
+    "natural_predators": [
+      "Ladybugs",
+      "Lacewings",
+      "Parasitic wasps",
+      "Birds",
+      "Spiders"
+    ]
+  },
+  "caterpillars": {
+    "name": "Caterpillars",
+    "description": "Larvae of butterflies and moths that can cause significant damage to plants by eating leaves.",
+    "identification": [
+      "Worm-like larvae with distinct head capsule",
+      "Various colors: green, brown, black, striped",
+      "6 true legs near head, prolegs on abdomen",
+      "Size varies from 1cm to 10cm depending on species",
+      "Leave behind frass (droppings)"
+    ],
+    "damage": [
+      "Large holes in leaves",
+      "Completely eaten leaves",
+      "Damaged fruits and flowers",
+      "Defoliation of entire plants",
+      "Tunnel damage in stems or fruits"
+    ],
+    "organic_treatments": [
+      "Hand-pick caterpillars in early morning",
+      "Apply Bacillus thuringiensis (Bt) spray",
+      "Use row covers during egg-laying periods",
+      "Spray with neem oil",
+      "Apply beneficial nematodes to soil"
+    ],
+    "prevention": [
+      "Plant diverse flowers to attract beneficial insects",
+      "Use companion planting with herbs like dill and fennel",
+      "Install bird houses to encourage natural predators",
+      "Rotate crops annually",
+      "Remove plant debris where pupae might overwinter"
+    ],
+    "natural_predators": [
+      "Birds",
+      "Parasitic wasps",
+      "Ground beetles",
+      "Spiders",
+      "Tachinid flies"
+    ]
+  },
+  "spider_mites": {
+    "name": "Spider Mites",
+    "description": "Tiny arachnids that feed on plant cells, causing stippling and webbing on leaves.",
+    "identification": [
+      "Extremely small (less than 1mm) spider-like pests",
+      "Red, yellow, or green coloration",
+      "Fine webbing on leaves and stems",
+      "Stippled or bronzed appearance on leaves",
+      "More active in hot, dry conditions"
+    ],
+    "damage": [
+      "Tiny yellow or white spots on leaves",
+      "Bronzing or silvering of leaves",
+      "Fine webbing on plant surfaces",
+      "Premature leaf drop",
+      "Reduced plant vigor and yield"
+    ],
+    "organic_treatments": [
+      "Increase humidity around plants",
+      "Spray with insecticidal soap",
+      "Use neem oil applications",
+      "Release predatory mites",
+      "Strong water sprays to remove mites"
+    ],
+    "prevention": [
+      "Maintain adequate soil moisture",
+      "Increase air circulation around plants",
+      "Avoid over-fertilizing with nitrogen",
+      "Plant diversity to support beneficial insects",
+      "Regular monitoring, especially in hot weather"
+    ],
+    "natural_predators": [
+      "Predatory mites",
+      "Ladybugs",
+      "Lacewings",
+      "Thrips (some species)",
+      "Minute pirate bugs"
+    ]
+  },
+  "whiteflies": {
+    "name": "Whiteflies",
+    "description": "Small, white flying insects that feed on plant sap and can transmit plant viruses.",
+    "identification": [
+      "Small (1-2mm) white flying insects",
+      "Triangular shape when wings are folded",
+      "Fly up when plants are disturbed",
+      "Yellow, scale-like nymphs on leaf undersides",
+      "Sticky honeydew secretions"
+    ],
+    "damage": [
+      "Yellowing and wilting of leaves",
+      "Sticky honeydew on plant surfaces",
+      "Sooty mold development",
+      "Stunted plant growth",
+      "Transmission of plant viruses"
+    ],
+    "organic_treatments": [
+      "Use yellow sticky traps",
+      "Apply insecticidal soap spray",
+      "Vacuum flying adults in early morning",
+      "Use neem oil treatments",
+      "Introduce parasitic wasps"
+    ],
+    "prevention": [
+      "Use reflective mulch to confuse whiteflies",
+      "Plant companion plants like marigolds",
+      "Avoid over-fertilizing with nitrogen",
+      "Remove weeds that serve as hosts",
+      "Use row covers when plants are young"
+    ],
+    "natural_predators": [
+      "Parasitic wasps",
+      "Ladybugs",
+      "Lacewings",
+      "Spiders",
+      "Dragonflies"
+    ]
+  },
+  "scale_insects": {
+    "name": "Scale Insects",
+    "description": "Small, immobile insects that attach to plant stems and leaves, feeding on sap.",
+    "identification": [
+      "Small, oval or round bumps on stems and leaves",
+      "Hard or soft shell covering the insect",
+      "Brown, white, or gray colored scales",
+      "Sticky honeydew secretions",
+      "Yellowing of affected plant parts"
+    ],
+    "damage": [
+      "Yellowing and dropping of leaves",
+      "Stunted plant growth",
+      "Branch dieback",
+      "Sticky honeydew secretions",
+      "Weakened plant structure"
+    ],
+    "organic_treatments": [
+      "Scrape off scales with fingernail or soft brush",
+      "Apply horticultural oil spray",
+      "Use insecticidal soap treatments",
+      "Dab individual scales with rubbing alcohol",
+      "Introduce beneficial insects"
+    ],
+    "prevention": [
+      "Quarantine new plants before introducing to garden",
+      "Maintain proper plant spacing for air circulation",
+      "Avoid over-fertilizing with nitrogen",
+      "Regular inspection of plants",
+      "Remove heavily infested plant parts"
+    ],
+    "natural_predators": [
+      "Ladybugs",
+      "Parasitic wasps",
+      "Lacewings",
+      "Predatory beetles",
+      "Birds"
+    ]
+  },
+  "thrips": {
+    "name": "Thrips",
+    "description": "Tiny, slender insects that feed on plant cells, causing silvering and stippling damage.",
+    "identification": [
+      "Very small (1-2mm) slender insects",
+      "Yellow, brown, or black coloration",
+      "Fringed wings",
+      "Fast-moving when disturbed",
+      "Silvery stippling damage on leaves"
+    ],
+    "damage": [
+      "Silvery stippling on leaf surfaces",
+      "Distorted or curled leaves",
+      "Black specks of excrement on leaves",
+      "Reduced plant vigor",
+      "Transmission of plant viruses"
+    ],
+    "organic_treatments": [
+      "Use blue sticky traps",
+      "Apply insecticidal soap spray",
+      "Release predatory mites",
+      "Use neem oil treatments",
+      "Remove affected plant debris"
+    ],
+    "prevention": [
+      "Maintain proper soil moisture",
+      "Use row covers during vulnerable periods",
+      "Plant diverse flowers to attract beneficials",
+      "Remove weeds and plant debris",
+      "Avoid over-fertilizing with nitrogen"
+    ],
+    "natural_predators": [
+      "Predatory mites",
+      "Minute pirate bugs",
+      "Lacewings",
+      "Parasitic wasps",
+      "Spiders"
+    ]
+  }
+}
