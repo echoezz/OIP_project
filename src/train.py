@@ -1,295 +1,379 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from tqdm import tqdm
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers, models, optimizers, callbacks
+import numpy as np
 import os
-import sys
 import json
 import time
-import numpy as np
 from sklearn.metrics import classification_report
+import matplotlib.pyplot as plt
+from pathlib import Path
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Hide TensorFlow info messages and set memory growth
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
 
-from models.pest_classifier import PestClassifier, get_model_summary
-from src.data_loader import PestDataLoader
-
-def train_small_dataset_cnn():
-    """Train CNN optimized for small datasets with advanced techniques"""
+def clean_dataset_directory(data_dir):
+    """Remove empty directories and return valid classes"""
+    valid_classes = []
+    removed_dirs = []
     
-    print("🚀 Starting Small Dataset Optimized CNN Training")
+    print("🧹 Checking dataset directories...")
+    
+    for item in os.listdir(data_dir):
+        item_path = os.path.join(data_dir, item)
+        
+        if os.path.isdir(item_path):
+            # Count image files
+            image_files = [f for f in os.listdir(item_path) 
+                          if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+            
+            if len(image_files) == 0:
+                print(f"   ⚠️  Empty directory found: {item} (will be skipped)")
+                removed_dirs.append(item)
+            else:
+                valid_classes.append(item)
+                print(f"   ✅ {item}: {len(image_files)} images")
+    
+    if removed_dirs:
+        print(f"📊 Found {len(removed_dirs)} empty directories: {removed_dirs}")
+        print(f"   These will be ignored during training")
+    
+    print(f"✅ Valid classes: {len(valid_classes)}")
+    return valid_classes
+
+def create_data_generators(data_dir, batch_size=8, img_size=224, validation_split=0.2):
+    """Create TensorFlow data generators with heavy augmentation"""
+    
+    # Check for valid classes first
+    valid_classes = clean_dataset_directory(data_dir)
+    
+    if len(valid_classes) == 0:
+        raise ValueError("No valid classes with images found in dataset directory!")
+    
+    # Heavy augmentation for training
+    train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
+        rescale=1./255,
+        rotation_range=45,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        shear_range=0.2,
+        zoom_range=0.2,
+        horizontal_flip=True,
+        vertical_flip=True,
+        brightness_range=[0.6, 1.4],
+        fill_mode='reflect',
+        validation_split=validation_split
+    )
+    
+    # Light augmentation for validation
+    val_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
+        rescale=1./255,
+        validation_split=validation_split
+    )
+    
+    # Create generators
+    train_generator = train_datagen.flow_from_directory(
+        data_dir,
+        target_size=(img_size, img_size),
+        batch_size=batch_size,
+        class_mode='categorical',
+        subset='training',
+        shuffle=True,
+        seed=42
+    )
+    
+    val_generator = val_datagen.flow_from_directory(
+        data_dir,
+        target_size=(img_size, img_size),
+        batch_size=batch_size,
+        class_mode='categorical',
+        subset='validation',
+        shuffle=False,
+        seed=42
+    )
+    
+    return train_generator, val_generator, valid_classes
+
+def create_pest_classifier_model(num_classes, img_size=224):
+    """Create CNN model optimized for pest classification"""
+    
+    model = models.Sequential([
+        # First Conv Block
+        layers.Conv2D(32, (3, 3), activation='relu', input_shape=(img_size, img_size, 3)),
+        layers.BatchNormalization(),
+        layers.Conv2D(32, (3, 3), activation='relu'),
+        layers.MaxPooling2D(2, 2),
+        layers.Dropout(0.25),
+        
+        # Second Conv Block
+        layers.Conv2D(64, (3, 3), activation='relu'),
+        layers.BatchNormalization(),
+        layers.Conv2D(64, (3, 3), activation='relu'),
+        layers.MaxPooling2D(2, 2),
+        layers.Dropout(0.25),
+        
+        # Third Conv Block
+        layers.Conv2D(128, (3, 3), activation='relu'),
+        layers.BatchNormalization(),
+        layers.Conv2D(128, (3, 3), activation='relu'),
+        layers.MaxPooling2D(2, 2),
+        layers.Dropout(0.25),
+        
+        # Fourth Conv Block
+        layers.Conv2D(256, (3, 3), activation='relu'),
+        layers.BatchNormalization(),
+        layers.Conv2D(256, (3, 3), activation='relu'),
+        layers.MaxPooling2D(2, 2),
+        layers.Dropout(0.25),
+        
+        # Fifth Conv Block
+        layers.Conv2D(512, (3, 3), activation='relu'),
+        layers.BatchNormalization(),
+        layers.GlobalAveragePooling2D(),
+        layers.Dropout(0.5),
+        
+        # Dense layers
+        layers.Dense(512, activation='relu'),
+        layers.BatchNormalization(),
+        layers.Dropout(0.5),
+        layers.Dense(256, activation='relu'),
+        layers.BatchNormalization(),
+        layers.Dropout(0.3),
+        layers.Dense(num_classes, activation='softmax')
+    ])
+    
+    return model
+
+def create_advanced_callbacks(model_save_path, patience=25, min_epochs=30):
+    """Create advanced callbacks for training"""
+    
+    callbacks_list = [
+        # Save best model
+        keras.callbacks.ModelCheckpoint(
+            filepath=f'{model_save_path}/best_model.h5',
+            monitor='val_accuracy',
+            save_best_only=True,
+            save_weights_only=False,
+            verbose=1
+        ),
+        
+        # Early stopping with patience
+        keras.callbacks.EarlyStopping(
+            monitor='val_accuracy',
+            patience=patience,
+            restore_best_weights=True,
+            verbose=1,
+            start_from_epoch=min_epochs
+        ),
+        
+        # Reduce learning rate on plateau
+        keras.callbacks.ReduceLROnPlateau(
+            monitor='val_loss',
+            factor=0.5,
+            patience=10,
+            min_lr=1e-7,
+            verbose=1
+        ),
+        
+        # CSV logger
+        keras.callbacks.CSVLogger(
+            f'{model_save_path}/training_log.csv'
+        )
+    ]
+    
+    return callbacks_list
+
+def calculate_class_weights(data_dir, classes):
+    """Calculate class weights for imbalanced datasets (fixed version)"""
+    
+    print("⚖️  Calculating class weights...")
+    
+    # Get actual class distribution from filesystem
+    class_counts = {}
+    total_samples = 0
+    
+    for class_name in classes:
+        class_path = os.path.join(data_dir, class_name)
+        if os.path.exists(class_path) and os.path.isdir(class_path):
+            count = len([f for f in os.listdir(class_path) 
+                        if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+            if count > 0:  # Only include classes with images
+                class_counts[class_name] = count
+                total_samples += count
+    
+    if not class_counts:
+        print("⚠️  No valid classes found, using equal weights")
+        return None
+    
+    # Calculate weights using class names as keys
+    class_weights = {}
+    num_classes = len(class_counts)
+    
+    print("📊 Class distribution and weights:")
+    for i, (class_name, count) in enumerate(class_counts.items()):
+        weight = total_samples / (num_classes * count)
+        class_weights[i] = weight  # TensorFlow uses integer indices
+        percentage = (count / total_samples) * 100
+        print(f"   {class_name}: {count} images ({percentage:.1f}%) -> weight: {weight:.2f}")
+    
+    # Check for severe imbalance
+    weights = list(class_weights.values())
+    if max(weights) / min(weights) > 5:
+        print("⚠️  Severe class imbalance detected! Consider collecting more data.")
+    
+    return class_weights
+
+def train_tensorflow_cnn():
+    """Train CNN using TensorFlow/Keras"""
+    
+    print("🚀 Starting TensorFlow CNN Pest Classification Training")
     print("=" * 60)
     
-    # Optimized configuration for small datasets
+    # Configuration
     config = {
         'data_dir': 'datasets',
         'model_save_path': 'models/saved_models',
-        'epochs': 150,  # More epochs for small datasets
-        'learning_rate': 0.0003,  # Lower learning rate for stability
-        'batch_size': 8,  # Smaller batch size for better gradients
+        'epochs': 150,
+        'learning_rate': 0.0003,
+        'batch_size': 8,
         'img_size': 224,
-        'weight_decay': 1e-3,  # Stronger regularization
-        'augmentation_factor': 20,  # Heavy augmentation (20x data)
-        'patience': 25,  # More patience for small datasets
-        'accumulation_steps': 4,  # Simulate larger batch size
-        'min_epochs': 30  # Minimum epochs before early stopping
+        'validation_split': 0.2,
+        'patience': 25,
+        'min_epochs': 30
     }
     
     # Create save directory
     os.makedirs(config['model_save_path'], exist_ok=True)
     
-    # Device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"🖥️  Using device: {device}")
+    print(f"🖥️  Using TensorFlow {tf.__version__}")
+    print(f"🔧 GPU Available: {len(tf.config.list_physical_devices('GPU')) > 0}")
     
-    # Data loaders with heavy augmentation
-    data_loader = PestDataLoader(
-        config['data_dir'], 
-        batch_size=config['batch_size'],
-        img_size=config['img_size'],
-        augmentation_factor=config['augmentation_factor']
-    )
+    # Create data generators
+    print("\n📊 Creating data generators...")
+    try:
+        train_generator, val_generator, valid_classes = create_data_generators(
+            config['data_dir'],
+            batch_size=config['batch_size'],
+            img_size=config['img_size'],
+            validation_split=config['validation_split']
+        )
+    except Exception as e:
+        print(f"❌ Error creating data generators: {e}")
+        print("💡 Make sure your dataset directory structure is correct:")
+        print("   datasets/")
+        print("   ├── class1/")
+        print("   │   ├── image1.jpg")
+        print("   │   └── image2.jpg")
+        print("   ├── class2/")
+        print("   │   └── image3.jpg")
+        return None, 0
     
-    # Analyze dataset balance first
-    print("\n📊 Analyzing dataset...")
-    class_distribution = data_loader.analyze_dataset_balance()
-    
-    train_loader, val_loader, classes = data_loader.get_data_loaders()
+    # Get classes and dataset info
+    classes = valid_classes
     num_classes = len(classes)
     
-    print(f"\n🎯 Small Dataset Training Configuration:")
+    if num_classes == 0:
+        print("❌ No valid classes found!")
+        return None, 0
+    
+    print(f"\n🎯 Training Configuration:")
     print(f"   Classes: {num_classes}")
-    print(f"   Epochs: {config['epochs']} (with early stopping)")
-    print(f"   Batch size: {config['batch_size']} (with gradient accumulation)")
-    print(f"   Effective batch size: {config['batch_size'] * config['accumulation_steps']}")
+    print(f"   Training samples: {train_generator.samples}")
+    print(f"   Validation samples: {val_generator.samples}")
+    print(f"   Batch size: {config['batch_size']}")
+    print(f"   Image size: {config['img_size']}x{config['img_size']}")
+    print(f"   Epochs: {config['epochs']}")
     print(f"   Learning rate: {config['learning_rate']}")
-    print(f"   Data augmentation: {config['augmentation_factor']}x")
-    print(f"   Regularization: Strong (weight_decay={config['weight_decay']})")
     
-    # Model
-    model = PestClassifier(num_classes).to(device)
-    print(f"\n{get_model_summary(model)}")
+    print(f"\n📋 Classes found: {classes}")
     
-    # Calculate class weights for imbalanced datasets
-    if class_distribution:
-        total_samples = sum(class_distribution.values())
-        class_weights = []
-        for class_name in classes:
-            class_count = class_distribution.get(class_name, 1)
-            weight = total_samples / (num_classes * class_count)
-            class_weights.append(weight)
-        
-        class_weights = torch.FloatTensor(class_weights).to(device)
-        print(f"📊 Using class weights for imbalanced data: {[f'{w:.2f}' for w in class_weights]}")
-        criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.2)
-    else:
-        criterion = nn.CrossEntropyLoss(label_smoothing=0.2)
+    # Calculate class weights
+    class_weights = calculate_class_weights(config['data_dir'], classes)
     
-    # Optimizer optimized for small datasets
-    optimizer = optim.AdamW(model.parameters(), 
-                           lr=config['learning_rate'],
-                           weight_decay=config['weight_decay'],
-                           betas=(0.9, 0.999))
+    # Create model
+    print(f"\n🧠 Creating model...")
+    model = create_pest_classifier_model(num_classes, config['img_size'])
     
-    # Advanced learning rate scheduling
-    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        optimizer, T_0=30, T_mult=2, eta_min=1e-6
+    # Print model summary
+    print(f"\n📋 Model Architecture:")
+    total_params = model.count_params()
+    print(f"   📊 Total parameters: {total_params:,}")
+    print(f"   🧠 Model layers: {len(model.layers)}")
+    print(f"   📥 Input shape: {model.input_shape}")
+    print(f"   📤 Output shape: {model.output_shape}")
+    
+    # Compile model with advanced settings
+    optimizer = keras.optimizers.AdamW(
+        learning_rate=config['learning_rate'],
+        weight_decay=1e-3
     )
     
-    # Training tracking
-    best_val_acc = 0.0
-    patience_counter = 0
-    training_history = {
-        'train_acc': [], 'val_acc': [], 'train_loss': [], 'val_loss': [],
-        'learning_rates': [], 'epoch_times': []
-    }
+    model.compile(
+        optimizer=optimizer,
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
     
-    print(f"\n🎓 Starting Small Dataset Optimized Training...")
-    print(f"🔧 Advanced features: Gradient accumulation, Label smoothing, Class weighting, Warm restarts")
+    # Create callbacks
+    callbacks_list = create_advanced_callbacks(
+        config['model_save_path'],
+        patience=config['patience'],
+        min_epochs=config['min_epochs']
+    )
+    
+    print(f"\n🎓 Starting Training...")
+    print(f"🔧 Features: Heavy augmentation, Class weighting, Early stopping, LR scheduling")
+    
     start_time = time.time()
     
-    for epoch in range(config['epochs']):
-        epoch_start = time.time()
-        print(f"\n📅 Epoch {epoch+1}/{config['epochs']}")
-        print("-" * 50)
-        
-        # Training phase with gradient accumulation
-        model.train()
-        train_loss = 0.0
-        train_correct = 0
-        train_total = 0
-        accumulated_loss = 0.0
-        
-        optimizer.zero_grad()
-        
-        train_bar = tqdm(train_loader, desc='Training')
-        for batch_idx, (images, labels) in enumerate(train_bar):
-            images, labels = images.to(device), labels.to(device)
-            
-            # Forward pass
-            outputs = model(images)
-            loss = criterion(outputs, labels) / config['accumulation_steps']
-            
-            # Backward pass
-            loss.backward()
-            accumulated_loss += loss.item()
-            
-            # Gradient accumulation
-            if (batch_idx + 1) % config['accumulation_steps'] == 0 or (batch_idx + 1) == len(train_loader):
-                # Gradient clipping for stability
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                optimizer.step()
-                optimizer.zero_grad()
-                
-                # Update metrics
-                train_loss += accumulated_loss
-                accumulated_loss = 0.0
-            
-            # Calculate accuracy
-            _, predicted = torch.max(outputs.data, 1)
-            train_total += labels.size(0)
-            train_correct += (predicted == labels).sum().item()
-            
-            # Update progress bar
-            current_acc = 100 * train_correct / train_total
-            current_lr = optimizer.param_groups[0]['lr']
-            train_bar.set_postfix({
-                'Loss': f'{loss.item() * config["accumulation_steps"]:.4f}',
-                'Acc': f'{current_acc:.2f}%',
-                'LR': f'{current_lr:.2e}'
-            })
-        
-        # Validation phase
-        model.eval()
-        val_loss = 0.0
-        val_correct = 0
-        val_total = 0
-        all_val_preds = []
-        all_val_labels = []
-        
-        with torch.no_grad():
-            val_bar = tqdm(val_loader, desc='Validation')
-            for images, labels in val_bar:
-                images, labels = images.to(device), labels.to(device)
-                outputs = model(images)
-                loss = criterion(outputs, labels)
-                
-                val_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
-                val_total += labels.size(0)
-                val_correct += (predicted == labels).sum().item()
-                
-                # Store for detailed analysis
-                all_val_preds.extend(predicted.cpu().numpy())
-                all_val_labels.extend(labels.cpu().numpy())
-                
-                val_bar.set_postfix({
-                    'Loss': f'{loss.item():.4f}',
-                    'Acc': f'{100 * val_correct / val_total:.2f}%'
-                })
-        
-        # Step scheduler
-        scheduler.step()
-        epoch_time = time.time() - epoch_start
-        
-        # Calculate metrics
-        train_acc = 100 * train_correct / train_total
-        val_acc = 100 * val_correct / val_total
-        avg_train_loss = train_loss / (len(train_loader) // config['accumulation_steps'])
-        avg_val_loss = val_loss / len(val_loader)
-        current_lr = optimizer.param_groups[0]['lr']
-        
-        # Save metrics
-        training_history['train_acc'].append(train_acc)
-        training_history['val_acc'].append(val_acc)
-        training_history['train_loss'].append(avg_train_loss)
-        training_history['val_loss'].append(avg_val_loss)
-        training_history['learning_rates'].append(current_lr)
-        training_history['epoch_times'].append(epoch_time)
-        
-        # Print detailed epoch results
-        print(f"\n📊 Epoch {epoch+1} Results:")
-        print(f"   ⏱️  Time: {epoch_time:.1f}s")
-        print(f"   🏋️  Train Loss: {avg_train_loss:.4f} | Train Acc: {train_acc:.2f}%")
-        print(f"   🎯 Val Loss: {avg_val_loss:.4f}   | Val Acc: {val_acc:.2f}%")
-        print(f"   📈 Learning Rate: {current_lr:.2e}")
-        
-        # Overfitting detection
-        if len(training_history['train_acc']) > 5:
-            recent_train_acc = np.mean(training_history['train_acc'][-3:])
-            recent_val_acc = np.mean(training_history['val_acc'][-3:])
-            overfitting_gap = recent_train_acc - recent_val_acc
-            
-            if overfitting_gap > 30:
-                print(f"   ⚠️  Overfitting detected: {overfitting_gap:.1f}% gap")
-            elif overfitting_gap > 20:
-                print(f"   📊 Training gap: {overfitting_gap:.1f}%")
-        
-        # Early stopping and model saving
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            patience_counter = 0
-            
-            # Save best model
-            torch.save(model.state_dict(), f"{config['model_save_path']}/best_model.pth")
-            print(f"   🏆 NEW BEST MODEL! Validation accuracy: {best_val_acc:.2f}%")
-            
-            # Save detailed classification report for best model
-            if epoch >= 10:  # Only after some training
-                try:
-                    report = classification_report(all_val_labels, all_val_preds, 
-                                                 target_names=classes, output_dict=True, zero_division=0)
-                    with open(f"{config['model_save_path']}/classification_report.json", 'w') as f:
-                        json.dump(report, f, indent=2)
-                    
-                    # Print per-class accuracy
-                    print(f"   📋 Per-class accuracy:")
-                    for class_name in classes:
-                        if class_name in report:
-                            f1_score = report[class_name].get('f1-score', 0)
-                            print(f"      {class_name}: {f1_score:.2f}")
-                except Exception as e:
-                    print(f"   ⚠️  Could not generate classification report: {e}")
-        else:
-            patience_counter += 1
-            print(f"   ⏳ Patience: {patience_counter}/{config['patience']} (Best: {best_val_acc:.2f}%)")
-            
-            # Early stopping (but not too early for small datasets)
-            if patience_counter >= config['patience'] and epoch >= config['min_epochs']:
-                print(f"\n🛑 Early stopping triggered at epoch {epoch+1}")
-                print(f"   📊 No improvement for {config['patience']} epochs")
-                break
-        
-        # Save checkpoint every 20 epochs
-        if (epoch + 1) % 20 == 0:
-            checkpoint_path = f"{config['model_save_path']}/checkpoint_epoch_{epoch+1}.pth"
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict(),
-                'best_val_acc': best_val_acc,
-                'training_history': training_history
-            }, checkpoint_path)
-            print(f"   💾 Checkpoint saved: {checkpoint_path}")
+    # Train the model
+    try:
+        history = model.fit(
+            train_generator,
+            epochs=config['epochs'],
+            validation_data=val_generator,
+            callbacks=callbacks_list,
+            class_weight=class_weights,
+            verbose=1
+        )
+    except Exception as e:
+        print(f"❌ Training failed: {e}")
+        return None, 0
     
     # Training completed
     total_time = time.time() - start_time
-    avg_epoch_time = np.mean(training_history['epoch_times']) if training_history['epoch_times'] else 0
     
     print(f"\n🎉 TRAINING COMPLETED!")
     print("=" * 60)
+    
+    # Get best metrics
+    if 'val_accuracy' in history.history and len(history.history['val_accuracy']) > 0:
+        best_val_acc = max(history.history['val_accuracy']) * 100
+        best_epoch = history.history['val_accuracy'].index(max(history.history['val_accuracy'])) + 1
+        final_epochs = len(history.history['val_accuracy'])
+    else:
+        print("⚠️  No validation accuracy recorded")
+        best_val_acc = 0
+        best_epoch = 0
+        final_epochs = 0
+    
     print(f"🏆 Best validation accuracy: {best_val_acc:.2f}%")
+    print(f"📅 Best epoch: {best_epoch}")
+    print(f"🔄 Total epochs completed: {final_epochs}")
     print(f"⏱️  Total training time: {total_time/60:.1f} minutes")
-    print(f"📊 Average time per epoch: {avg_epoch_time:.1f} seconds")
-    print(f"🔄 Total epochs completed: {epoch+1}")
     
     # Calculate improvement
-    if len(training_history['val_acc']) > 1:
-        initial_acc = training_history['val_acc'][0]
-        final_acc = best_val_acc
-        improvement = final_acc - initial_acc
-        print(f"📈 Accuracy improvement: +{improvement:.1f}% (from {initial_acc:.1f}% to {final_acc:.1f}%)")
+    if len(history.history['val_accuracy']) > 1:
+        initial_acc = history.history['val_accuracy'][0] * 100
+        improvement = best_val_acc - initial_acc
+        print(f"📈 Accuracy improvement: +{improvement:.1f}% (from {initial_acc:.1f}% to {best_val_acc:.1f}%)")
     
     # Final model analysis
     print(f"\n📋 Final Model Analysis:")
@@ -298,103 +382,198 @@ def train_small_dataset_cnn():
     
     if best_val_acc < 50:
         print(f"\n💡 Suggestions for improvement:")
-        print(f"   • Add more training data if possible")
-        print(f"   • Try training for more epochs")
+        print(f"   • Train for more epochs")
         print(f"   • Adjust augmentation parameters")
-        print(f"   • Consider ensemble methods")
+        print(f"   • Try different learning rates")
+        print(f"   • Consider transfer learning")
+    
+    # Generate predictions for classification report
+    print(f"\n📊 Generating detailed classification report...")
+    try:
+        val_generator.reset()
+        predictions = model.predict(val_generator, verbose=0)
+        predicted_classes = np.argmax(predictions, axis=1)
+        true_classes = val_generator.classes
+        
+        # Classification report
+        report = classification_report(
+            true_classes, 
+            predicted_classes, 
+            target_names=classes, 
+            output_dict=True,
+            zero_division=0
+        )
+        
+        print("📋 Per-class performance:")
+        for class_name in classes:
+            if class_name in report:
+                precision = report[class_name].get('precision', 0)
+                recall = report[class_name].get('recall', 0)
+                f1 = report[class_name].get('f1-score', 0)
+                print(f"   {class_name}: P={precision:.2f}, R={recall:.2f}, F1={f1:.2f}")
+        
+    except Exception as e:
+        print(f"⚠️  Could not generate classification report: {e}")
+        report = {}
     
     # Save comprehensive training info
     training_info = {
         'classes': classes,
         'num_classes': num_classes,
-        'best_val_acc': best_val_acc,
-        'final_epoch': epoch + 1,
+        'best_val_acc': float(best_val_acc),
+        'best_epoch': int(best_epoch),
+        'total_epochs': final_epochs,
         'config': config,
-        'training_history': training_history,
-        'model_type': 'SmallDatasetOptimizedCNN',
+        'model_type': 'TensorFlowCNN',
         'training_completed': True,
         'total_training_time_minutes': total_time / 60,
-        'average_epoch_time_seconds': avg_epoch_time,
-        'class_distribution': class_distribution,
         'optimization_features': [
-            'Heavy data augmentation (20x)',
-            'Gradient accumulation',
+            'Heavy data augmentation',
             'Class weighting for imbalance',
-            'Label smoothing',
-            'Strong regularization',
-            'Cosine annealing with warm restarts',
-            'Gradient clipping',
-            'Early stopping with patience'
+            'AdamW optimizer with weight decay',
+            'Learning rate scheduling',
+            'Early stopping with patience',
+            'Batch normalization',
+            'Dropout regularization'
         ]
     }
     
+    if class_weights:
+        training_info['class_weights'] = {str(k): float(v) for k, v in class_weights.items()}
+    
     # Save files
-    with open(f"{config['model_save_path']}/classes.json", 'w') as f:
-        json.dump(classes, f, indent=2)
+    print(f"\n💾 Saving training files...")
     
-    with open(f"{config['model_save_path']}/training_info.json", 'w') as f:
-        json.dump(training_info, f, indent=2)
-    
-    # Save training history plot data
-    history_summary = {
-        'epochs': list(range(1, len(training_history['val_acc']) + 1)),
-        'train_accuracy': training_history['train_acc'],
-        'validation_accuracy': training_history['val_acc'],
-        'train_loss': training_history['train_loss'],
-        'validation_loss': training_history['val_loss'],
-        'learning_rates': training_history['learning_rates']
-    }
-    
-    with open(f"{config['model_save_path']}/training_history.json", 'w') as f:
-        json.dump(history_summary, f, indent=2)
-    
-    print(f"\n💾 All files saved to: {config['model_save_path']}/")
-    print(f"   • best_model.pth (trained model)")
-    print(f"   • classes.json (class names)")
-    print(f"   • training_info.json (complete training details)")
-    print(f"   • training_history.json (accuracy/loss curves)")
-    print(f"   • classification_report.json (per-class metrics)")
+    try:
+        # Save classes
+        with open(f"{config['model_save_path']}/classes.json", 'w') as f:
+            json.dump(classes, f, indent=2)
+        
+        # Save training info
+        with open(f"{config['model_save_path']}/training_info.json", 'w') as f:
+            json.dump(training_info, f, indent=2)
+        
+        # Save classification report
+        if report:
+            with open(f"{config['model_save_path']}/classification_report.json", 'w') as f:
+                json.dump(report, f, indent=2)
+        
+        # Save training history
+        if 'val_accuracy' in history.history:
+            history_dict = {
+                'epochs': list(range(1, len(history.history['val_accuracy']) + 1)),
+                'train_accuracy': [float(x) * 100 for x in history.history['accuracy']],
+                'validation_accuracy': [float(x) * 100 for x in history.history['val_accuracy']],
+                'train_loss': [float(x) for x in history.history['loss']],
+                'validation_loss': [float(x) for x in history.history['val_loss']]
+            }
+            
+            with open(f"{config['model_save_path']}/training_history.json", 'w') as f:
+                json.dump(history_dict, f, indent=2)
+        
+        # Create training plots
+        if 'val_accuracy' in history.history and len(history.history['val_accuracy']) > 1:
+            create_training_plots(history, config['model_save_path'])
+        
+        print(f"\n💾 All files saved to: {config['model_save_path']}/")
+        print(f"   • best_model.h5 (trained model)")
+        print(f"   • classes.json (class names)")
+        print(f"   • training_info.json (complete training details)")
+        print(f"   • training_history.json (accuracy/loss curves)")
+        print(f"   • classification_report.json (per-class metrics)")
+        print(f"   • training_curves.png (visualization)")
+        print(f"   • training_log.csv (epoch-by-epoch log)")
+        
+    except Exception as e:
+        print(f"⚠️  Error saving files: {e}")
     
     return model, best_val_acc
 
-def quick_test_model(model_path, classes_path):
-    """Quick test of trained model"""
+def create_training_plots(history, save_path):
+    """Create and save training visualization plots"""
+    
     try:
-        from src.pest_identifier import PestIdentifier
-        identifier = PestIdentifier(model_path, classes_path, enable_tta=True)
-        print("✅ Model loaded successfully for testing!")
+        plt.style.use('default')
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+        fig.suptitle('Training Progress', fontsize=16, fontweight='bold')
+        
+        epochs = range(1, len(history.history['accuracy']) + 1)
+        
+        # Accuracy plot
+        ax1.plot(epochs, [x*100 for x in history.history['accuracy']], 'b-', label='Training Accuracy', linewidth=2)
+        ax1.plot(epochs, [x*100 for x in history.history['val_accuracy']], 'r-', label='Validation Accuracy', linewidth=2)
+        ax1.set_title('Model Accuracy', fontweight='bold')
+        ax1.set_xlabel('Epoch')
+        ax1.set_ylabel('Accuracy (%)')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # Loss plot
+        ax2.plot(epochs, history.history['loss'], 'b-', label='Training Loss', linewidth=2)
+        ax2.plot(epochs, history.history['val_loss'], 'r-', label='Validation Loss', linewidth=2)
+        ax2.set_title('Model Loss', fontweight='bold')
+        ax2.set_xlabel('Epoch')
+        ax2.set_ylabel('Loss')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig(f'{save_path}/training_curves.png', dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print("📊 Training visualization saved as training_curves.png")
+    except Exception as e:
+        print(f"⚠️  Could not create training plots: {e}")
+
+def test_tensorflow_model(model_path, classes_path):
+    """Test the trained TensorFlow model"""
+    try:
+        # Load model
+        model = keras.models.load_model(model_path)
+        
+        # Load classes
+        with open(classes_path, 'r') as f:
+            classes = json.load(f)
+        
+        print(f"✅ Model loaded successfully!")
+        print(f"📋 Classes: {classes}")
+        print(f"🧠 Model input shape: {model.input_shape}")
+        print(f"🎯 Model output shape: {model.output_shape}")
+        
         return True
     except Exception as e:
         print(f"❌ Model test failed: {e}")
         return False
 
 if __name__ == "__main__":
-    print("🌱 Small Dataset CNN Training Script")
+    print("🌱 TensorFlow CNN Training Script")
     print("=" * 60)
     
     # Train the model
-    model, final_accuracy = train_small_dataset_cnn()
+    model, final_accuracy = train_tensorflow_cnn()
     
-    # Test loading the saved model
-    print(f"\n🧪 Testing saved model...")
-    model_path = "models/saved_models/best_model.pth"
-    classes_path = "models/saved_models/classes.json"
-    
-    if os.path.exists(model_path) and os.path.exists(classes_path):
-        success = quick_test_model(model_path, classes_path)
-        if success:
-            print(f"🎉 SUCCESS! Model ready for deployment!")
-            print(f"📱 You can now run: python app/main_app.py")
+    if model is not None:
+        # Test loading the saved model
+        print(f"\n🧪 Testing saved model...")
+        model_path = "models/saved_models/best_model.h5"
+        classes_path = "models/saved_models/classes.json"
+        
+        if os.path.exists(model_path) and os.path.exists(classes_path):
+            success = test_tensorflow_model(model_path, classes_path)
+            if success:
+                print(f"🎉 SUCCESS! Model ready for deployment!")
+            else:
+                print(f"⚠️  Model saved but testing failed")
         else:
-            print(f"⚠️  Model saved but testing failed")
+            print(f"❌ Model files not found")
+        
+        print(f"\n🎯 FINAL RESULT: {final_accuracy:.1f}% accuracy achieved!")
+        
+        if final_accuracy >= 50:
+            print("🏆 EXCELLENT! Target achieved!")
+        elif final_accuracy >= 35:
+            print("✅ GOOD! Significant improvement from baseline!")
+        else:
+            print("📈 Progress made, consider more training or data")
     else:
-        print(f"❌ Model files not found")
-    
-    print(f"\n🎯 FINAL RESULT: {final_accuracy:.1f}% accuracy achieved!")
-    
-    if final_accuracy >= 50:
-        print("🏆 EXCELLENT! Target achieved!")
-    elif final_accuracy >= 35:
-        print("✅ GOOD! Significant improvement from baseline!")
-    else:
-        print("📈 Progress made, consider more training or data")
+        print("❌ Training failed. Please check your dataset structure.")
