@@ -48,7 +48,7 @@ def clean_dataset_directory(data_dir):
     print(f"✅ Valid classes: {len(valid_classes)}")
     return valid_classes
 
-def create_data_generators(data_dir, batch_size=16, img_size=224, validation_split=0.2):  # INCREASED batch size
+def create_data_generators(data_dir, batch_size=16, img_size=224, validation_split=0.2):
     """Create TensorFlow data generators with heavy augmentation"""
     
     # Check for valid classes first
@@ -60,13 +60,13 @@ def create_data_generators(data_dir, batch_size=16, img_size=224, validation_spl
     # Heavy augmentation for training
     train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
         rescale=1./255,
-        rotation_range=30,      # REDUCED rotation
-        width_shift_range=0.15, # REDUCED shift
+        rotation_range=30,
+        width_shift_range=0.15,
         height_shift_range=0.15,
-        shear_range=0.15,       # REDUCED shear
-        zoom_range=0.15,        # REDUCED zoom
+        shear_range=0.15,
+        zoom_range=0.15,
         horizontal_flip=True,
-        brightness_range=[0.8, 1.2],  # LESS aggressive brightness
+        brightness_range=[0.8, 1.2],
         fill_mode='reflect',
         validation_split=validation_split
     )
@@ -100,77 +100,75 @@ def create_data_generators(data_dir, batch_size=16, img_size=224, validation_spl
     
     return train_generator, val_generator, valid_classes
 
-# NEW: Residual Block for TensorFlow
-class ResidualBlock(layers.Layer):
-    def __init__(self, filters, stride=1, **kwargs):
-        super(ResidualBlock, self).__init__(**kwargs)
-        self.filters = filters
-        self.stride = stride
-        
-        # Main path
-        self.conv1 = layers.Conv2D(filters, 3, strides=stride, padding='same', use_bias=False)
-        self.bn1 = layers.BatchNormalization()
-        self.conv2 = layers.Conv2D(filters, 3, padding='same', use_bias=False)
-        self.bn2 = layers.BatchNormalization()
-        
-        # Skip connection
-        if stride != 1:
-            self.skip_conv = layers.Conv2D(filters, 1, strides=stride, padding='same', use_bias=False)
-            self.skip_bn = layers.BatchNormalization()
-        else:
-            self.skip_conv = None
-            
-        self.dropout = layers.Dropout(0.1)
-        
-    def call(self, inputs, training=None):
-        # Main path
-        x = self.conv1(inputs)
-        x = self.bn1(x, training=training)
-        x = tf.nn.relu(x)
-        
-        x = self.conv2(x)
-        x = self.bn2(x, training=training)
-        
-        # Skip connection
-        if self.skip_conv:
-            skip = self.skip_conv(inputs)
-            skip = self.skip_bn(skip, training=training)
-        else:
-            skip = inputs
-            
-        # Add skip connection
-        x = x + skip
-        x = tf.nn.relu(x)
-        x = self.dropout(x, training=training)
-        
-        return x
-
 def create_enhanced_pest_classifier_model(num_classes, img_size=224):
-    """Create ENHANCED CNN model with residual connections"""
+    """Create ENHANCED CNN model with FIXED residual connections"""
     
     inputs = layers.Input(shape=(img_size, img_size, 3))
     
-    # Initial conv
-    x = layers.Conv2D(32, 7, strides=2, padding='same', use_bias=False)(inputs)
+    # Initial conv block
+    x = layers.Conv2D(32, 3, padding='same', use_bias=False)(inputs)
     x = layers.BatchNormalization()(x)
     x = layers.ReLU()(x)
-    x = layers.MaxPooling2D(3, strides=2, padding='same')(x)
+    x = layers.MaxPooling2D(2)(x)  # 224->112
     
-    # Residual blocks
-    x = ResidualBlock(64, stride=1)(x)
-    x = ResidualBlock(64, stride=1)(x)
-    x = layers.MaxPooling2D(2)(x)
+    # Block 1: 32 -> 64 channels
+    identity = layers.Conv2D(64, 1, padding='same', use_bias=False)(x)  # Match channels
+    identity = layers.BatchNormalization()(identity)
     
-    x = ResidualBlock(128, stride=1)(x)
-    x = ResidualBlock(128, stride=1)(x)
-    x = layers.MaxPooling2D(2)(x)
+    x = layers.Conv2D(64, 3, padding='same', use_bias=False)(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    x = layers.Conv2D(64, 3, padding='same', use_bias=False)(x)
+    x = layers.BatchNormalization()(x)
     
-    x = ResidualBlock(256, stride=1)(x)
-    x = ResidualBlock(256, stride=1)(x)
-    x = layers.MaxPooling2D(2)(x)
+    x = layers.Add()([x, identity])  # Residual connection
+    x = layers.ReLU()(x)
+    x = layers.Dropout(0.1)(x)
+    x = layers.MaxPooling2D(2)(x)  # 112->56
     
-    x = ResidualBlock(512, stride=1)(x)
-    x = ResidualBlock(512, stride=1)(x)
+    # Block 2: 64 -> 128 channels
+    identity = layers.Conv2D(128, 1, padding='same', use_bias=False)(x)
+    identity = layers.BatchNormalization()(identity)
+    
+    x = layers.Conv2D(128, 3, padding='same', use_bias=False)(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    x = layers.Conv2D(128, 3, padding='same', use_bias=False)(x)
+    x = layers.BatchNormalization()(x)
+    
+    x = layers.Add()([x, identity])  # Residual connection
+    x = layers.ReLU()(x)
+    x = layers.Dropout(0.1)(x)
+    x = layers.MaxPooling2D(2)(x)  # 56->28
+    
+    # Block 3: 128 -> 256 channels
+    identity = layers.Conv2D(256, 1, padding='same', use_bias=False)(x)
+    identity = layers.BatchNormalization()(identity)
+    
+    x = layers.Conv2D(256, 3, padding='same', use_bias=False)(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    x = layers.Conv2D(256, 3, padding='same', use_bias=False)(x)
+    x = layers.BatchNormalization()(x)
+    
+    x = layers.Add()([x, identity])  # Residual connection
+    x = layers.ReLU()(x)
+    x = layers.Dropout(0.1)(x)
+    x = layers.MaxPooling2D(2)(x)  # 28->14
+    
+    # Block 4: 256 -> 512 channels
+    identity = layers.Conv2D(512, 1, padding='same', use_bias=False)(x)
+    identity = layers.BatchNormalization()(identity)
+    
+    x = layers.Conv2D(512, 3, padding='same', use_bias=False)(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    x = layers.Conv2D(512, 3, padding='same', use_bias=False)(x)
+    x = layers.BatchNormalization()(x)
+    
+    x = layers.Add()([x, identity])  # Residual connection
+    x = layers.ReLU()(x)
+    x = layers.Dropout(0.1)(x)
     
     # Attention mechanism
     attention = layers.GlobalAveragePooling2D()(x)
@@ -193,13 +191,13 @@ def create_enhanced_pest_classifier_model(num_classes, img_size=224):
     model = models.Model(inputs, outputs)
     return model
 
-def create_advanced_callbacks(model_save_path, patience=15, min_epochs=20):  # REDUCED patience
+def create_advanced_callbacks(model_save_path, patience=15, min_epochs=20):
     """Create advanced callbacks for training"""
     
     callbacks_list = [
         # Save best model
         keras.callbacks.ModelCheckpoint(
-            filepath=f'{model_save_path}/best_model.h5',
+            filepath=f'{model_save_path}/best_model.keras',
             monitor='val_accuracy',
             save_best_only=True,
             save_weights_only=False,
@@ -215,11 +213,12 @@ def create_advanced_callbacks(model_save_path, patience=15, min_epochs=20):  # R
             start_from_epoch=min_epochs
         ),
         
-        # Cosine annealing learning rate
-        keras.callbacks.CosineRestartScheduler(
-            first_restart_epoch=20,
-            restart_mult=2,
-            alpha=0.1,
+        # Reduce learning rate on plateau
+        keras.callbacks.ReduceLROnPlateau(
+            monitor='val_loss',
+            factor=0.5,
+            patience=8,
+            min_lr=1e-7,
             verbose=1
         ),
         
@@ -231,48 +230,8 @@ def create_advanced_callbacks(model_save_path, patience=15, min_epochs=20):  # R
     
     return callbacks_list
 
-# NEW: Cosine Annealing Scheduler
-class CosineRestartScheduler(keras.callbacks.Callback):
-    def __init__(self, first_restart_epoch=20, restart_mult=2, alpha=0.1, verbose=0):
-        super(CosineRestartScheduler, self).__init__()
-        self.first_restart_epoch = first_restart_epoch
-        self.restart_mult = restart_mult
-        self.alpha = alpha
-        self.verbose = verbose
-        self.restart_epochs = [first_restart_epoch]
-        
-    def on_epoch_begin(self, epoch, logs=None):
-        # Calculate current cycle
-        current_restart = 0
-        for i, restart_epoch in enumerate(self.restart_epochs):
-            if epoch >= restart_epoch:
-                current_restart = i + 1
-            else:
-                break
-                
-        # Calculate next restart if needed
-        if current_restart >= len(self.restart_epochs):
-            next_restart = self.restart_epochs[-1] + (self.restart_epochs[-1] - self.restart_epochs[-2]) * self.restart_mult
-            self.restart_epochs.append(next_restart)
-            
-        # Calculate learning rate
-        if current_restart == 0:
-            cycle_length = self.first_restart_epoch
-            cycle_epoch = epoch
-        else:
-            cycle_length = self.restart_epochs[current_restart] - self.restart_epochs[current_restart - 1]
-            cycle_epoch = epoch - self.restart_epochs[current_restart - 1]
-            
-        lr = self.alpha + (1 - self.alpha) * (1 + np.cos(np.pi * cycle_epoch / cycle_length)) / 2
-        lr = lr * 0.001  # Base learning rate
-        
-        keras.backend.set_value(self.model.optimizer.lr, lr)
-        
-        if self.verbose:
-            print(f"\nEpoch {epoch + 1}: Learning rate is {lr:.6f}")
-
 def calculate_class_weights(data_dir, classes):
-    """Calculate class weights for imbalanced datasets (fixed version)"""
+    """Calculate class weights for imbalanced datasets"""
     
     print("⚖️  Calculating class weights...")
     
@@ -314,20 +273,20 @@ def calculate_class_weights(data_dir, classes):
 def train_tensorflow_cnn():
     """Train CNN using TensorFlow/Keras"""
     
-    print("🚀 Starting ENHANCED TensorFlow CNN Pest Classification Training")
+    print("🚀 Starting FIXED Enhanced TensorFlow CNN Training")
     print("=" * 60)
     
-    # UPDATED Configuration for speed
+    # Configuration
     config = {
         'data_dir': 'datasets',
         'model_save_path': 'models/saved_models',
-        'epochs': 100,           # REDUCED epochs
-        'learning_rate': 0.001,  # INCREASED learning rate as requested
-        'batch_size': 16,        # INCREASED batch size
+        'epochs': 100,
+        'learning_rate': 0.001,
+        'batch_size': 16,
         'img_size': 224,
         'validation_split': 0.2,
-        'patience': 15,          # REDUCED patience
-        'min_epochs': 20         # REDUCED min epochs
+        'patience': 15,
+        'min_epochs': 20
     }
     
     # Create save directory
@@ -347,13 +306,6 @@ def train_tensorflow_cnn():
         )
     except Exception as e:
         print(f"❌ Error creating data generators: {e}")
-        print("💡 Make sure your dataset directory structure is correct:")
-        print("   datasets/")
-        print("   ├── class1/")
-        print("   │   ├── image1.jpg")
-        print("   │   └── image2.jpg")
-        print("   ├── class2/")
-        print("   │   └── image3.jpg")
         return None, 0
     
     # Get classes and dataset info
@@ -364,35 +316,29 @@ def train_tensorflow_cnn():
         print("❌ No valid classes found!")
         return None, 0
     
-    print(f"\n🎯 ENHANCED Training Configuration:")
+    print(f"\n🎯 FIXED Training Configuration:")
     print(f"   Classes: {num_classes}")
     print(f"   Training samples: {train_generator.samples}")
     print(f"   Validation samples: {val_generator.samples}")
-    print(f"   Batch size: {config['batch_size']} (INCREASED)")
-    print(f"   Image size: {config['img_size']}x{config['img_size']}")
-    print(f"   Epochs: {config['epochs']} (REDUCED for speed)")
-    print(f"   Learning rate: {config['learning_rate']} (INCREASED)")
-    print(f"   🚀 NEW: Residual connections + Attention mechanism")
-    
-    print(f"\n📋 Classes found: {classes}")
+    print(f"   Batch size: {config['batch_size']}")
+    print(f"   Learning rate: {config['learning_rate']}")
+    print(f"   🚀 FIXED: Residual connections with proper dimension matching")
     
     # Calculate class weights
     class_weights = calculate_class_weights(config['data_dir'], classes)
     
-    # Create ENHANCED model
-    print(f"\n🧠 Creating ENHANCED model with residual connections...")
+    # Create FIXED model
+    print(f"\n🧠 Creating FIXED model with residual connections...")
     model = create_enhanced_pest_classifier_model(num_classes, config['img_size'])
     
     # Print model summary
-    print(f"\n📋 Enhanced Model Architecture:")
+    print(f"\n📋 FIXED Model Architecture:")
     total_params = model.count_params()
     print(f"   📊 Total parameters: {total_params:,}")
     print(f"   🧠 Model layers: {len(model.layers)}")
-    print(f"   📥 Input shape: {model.input_shape}")
-    print(f"   📤 Output shape: {model.output_shape}")
-    print(f"   ✨ Features: Residual connections + Attention + Enhanced classifier")
+    print(f"   ✅ FIXED: Dimension matching in residual connections")
     
-    # Compile model with SGD for faster convergence
+    # Compile model
     optimizer = keras.optimizers.SGD(
         learning_rate=config['learning_rate'],
         momentum=0.9,
@@ -412,8 +358,7 @@ def train_tensorflow_cnn():
         min_epochs=config['min_epochs']
     )
     
-    print(f"\n🎓 Starting ENHANCED Training...")
-    print(f"🔧 Features: Residual connections, Attention, SGD+Nesterov, Cosine annealing")
+    print(f"\n🎓 Starting FIXED Training...")
     
     start_time = time.time()
     
@@ -431,13 +376,10 @@ def train_tensorflow_cnn():
         print(f"❌ Training failed: {e}")
         return None, 0
     
-    # Rest of your code stays the same...
-    # [Include all the remaining functions for plotting, saving, etc.]
-    
     # Training completed
     total_time = time.time() - start_time
     
-    print(f"\n🎉 ENHANCED TRAINING COMPLETED!")
+    print(f"\n🎉 FIXED TRAINING COMPLETED!")
     print("=" * 60)
     
     # Get best metrics
@@ -446,7 +388,6 @@ def train_tensorflow_cnn():
         best_epoch = history.history['val_accuracy'].index(max(history.history['val_accuracy'])) + 1
         final_epochs = len(history.history['val_accuracy'])
     else:
-        print("⚠️  No validation accuracy recorded")
         best_val_acc = 0
         best_epoch = 0
         final_epochs = 0
@@ -464,14 +405,13 @@ def train_tensorflow_cnn():
         'best_epoch': int(best_epoch),
         'total_epochs': final_epochs,
         'config': config,
-        'model_type': 'Enhanced_TensorFlow_CNN_with_Residual',
+        'model_type': 'FIXED_Enhanced_TensorFlow_CNN_with_Residual',
         'training_completed': True,
         'total_training_time_minutes': total_time / 60,
         'optimization_features': [
-            'TRUE residual connections',
+            'FIXED residual connections with dimension matching',
             'Attention mechanism',
             'SGD with Nesterov momentum',
-            'Cosine annealing learning rate',
             'Enhanced data augmentation',
             'Class weighting for imbalance',
             'Early stopping optimization'
@@ -486,30 +426,64 @@ def train_tensorflow_cnn():
         with open(f"{config['model_save_path']}/training_info.json", 'w') as f:
             json.dump(training_info, f, indent=2)
             
-        print(f"\n💾 Enhanced model saved successfully!")
+        print(f"\n💾 FIXED model saved successfully!")
         
     except Exception as e:
         print(f"⚠️  Error saving files: {e}")
     
     return model, best_val_acc
 
-# [Include all your other functions like create_training_plots, test_tensorflow_model, etc.]
+def create_training_plots(history, save_path):
+    """Create and save training visualization plots"""
+    
+    try:
+        plt.style.use('default')
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+        fig.suptitle('Training Progress', fontsize=16, fontweight='bold')
+        
+        epochs = range(1, len(history.history['accuracy']) + 1)
+        
+        # Accuracy plot
+        ax1.plot(epochs, [x*100 for x in history.history['accuracy']], 'b-', label='Training Accuracy', linewidth=2)
+        ax1.plot(epochs, [x*100 for x in history.history['val_accuracy']], 'r-', label='Validation Accuracy', linewidth=2)
+        ax1.set_title('Model Accuracy', fontweight='bold')
+        ax1.set_xlabel('Epoch')
+        ax1.set_ylabel('Accuracy (%)')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # Loss plot
+        ax2.plot(epochs, history.history['loss'], 'b-', label='Training Loss', linewidth=2)
+        ax2.plot(epochs, history.history['val_loss'], 'r-', label='Validation Loss', linewidth=2)
+        ax2.set_title('Model Loss', fontweight='bold')
+        ax2.set_xlabel('Epoch')
+        ax2.set_ylabel('Loss')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig(f'{save_path}/training_curves.png', dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print("📊 Training visualization saved as training_curves.png")
+    except Exception as e:
+        print(f"⚠️  Could not create training plots: {e}")
 
 if __name__ == "__main__":
-    print("🌱 ENHANCED TensorFlow CNN Training Script")
+    print("🌱 FIXED Enhanced TensorFlow CNN Training Script")
     print("=" * 60)
     
-    # Train the enhanced model
+    # Train the FIXED model
     model, final_accuracy = train_tensorflow_cnn()
     
     if model is not None:
-        print(f"\n🎯 ENHANCED RESULT: {final_accuracy:.1f}% accuracy achieved!")
+        print(f"\n🎯 FIXED RESULT: {final_accuracy:.1f}% accuracy achieved!")
         
         if final_accuracy >= 50:
-            print("🏆 EXCELLENT! Target achieved with enhanced architecture!")
+            print("🏆 EXCELLENT! Target achieved with FIXED architecture!")
         elif final_accuracy >= 45:
-            print("✅ GREAT! Significant improvement with residual connections!")
+            print("✅ GREAT! Significant improvement with FIXED residual connections!")
         else:
-            print("📈 Progress made, enhanced features should help convergence")
+            print("📈 Progress made, FIXED architecture should help!")
     else:
         print("❌ Training failed. Please check your dataset structure.")
