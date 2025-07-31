@@ -1,3 +1,4 @@
+import sys
 import torch
 from PIL import Image
 import torchvision.transforms as transforms
@@ -7,7 +8,7 @@ import os
 import numpy as np
 import random
 
-from models.pest_classifier import PestClassifier
+from pest_classifier import PestClassifier
 
 class PestIdentifier:
     def __init__(self, model_path: str, classes_path: str, enable_tta: bool = True):

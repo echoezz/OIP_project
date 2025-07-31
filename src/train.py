@@ -5,27 +5,47 @@ from torch.utils.data import DataLoader
 import time
 import json
 import os
+import sys
 from tqdm import tqdm
 
-# Import your updated classifier
+# Add parent directory to path to find pest_classifier.py
+sys.path.append('..')
+
+# Now these imports will work
 from pest_classifier import create_model, save_model, get_model_summary
-from data_loader import get_balanced_data_loaders  # Your balanced data loader
+from data_loader import get_balanced_data_loaders
+
+class LossTracker:
+    """Track smoothed loss for stable monitoring"""
+    def __init__(self, window_size=50):
+        self.losses = []
+        self.window_size = window_size
+    
+    def update(self, loss):
+        self.losses.append(loss)
+        if len(self.losses) > self.window_size:
+            self.losses.pop(0)
+    
+    def get_average(self):
+        return sum(self.losses) / len(self.losses) if self.losses else 0
 
 def train_grayscale_separable_model():
-    """Train the new Grayscale Separable CNN"""
+    """Train the new Grayscale Separable CNN with STABLE settings"""
     
-    print("🎯 TRAINING GRAYSCALE SEPARABLE CNN")
+    print("🎯 STABLE TRAINING - GRAYSCALE SEPARABLE CNN")
     print("=" * 60)
     
-    # Configuration (you can keep your existing config)
+    # STABLE Configuration
     config = {
         'data_dir': 'datasets',
         'model_save_path': 'models/saved_models',
         'epochs': 100,
-        'learning_rate': 0.0008,
-        'batch_size': 16,
+        'learning_rate': 0.0001,    # Lower LR for stability
+        'batch_size': 32,           # Larger batch for stability
         'patience': 15,
-        'weight_decay': 1e-5
+        'weight_decay': 1e-4,       # Stronger regularization
+        'validation_split': 0.2,
+        'grad_clip_norm': 1.0       # Gradient clipping
     }
     
     # Create save directory
@@ -35,41 +55,53 @@ def train_grayscale_separable_model():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"🖥️  Using device: {device}")
     
-    # Load data (use your balanced data loader)
+    # Load data
     print("📊 Loading balanced dataset...")
     try:
         train_loader, val_loader, classes = get_balanced_data_loaders(
             data_dir=config['data_dir'],
             batch_size=config['batch_size'],
-            auto_balance=True  # Use your class balancing
+            validation_split=config['validation_split'],
+            auto_balance=True
         )
     except Exception as e:
         print(f"❌ Data loading failed: {e}")
+        print(f"💡 Check that '{config['data_dir']}' exists and contains class folders")
         return None, 0
     
     num_classes = len(classes)
     print(f"✅ Dataset loaded: {num_classes} classes")
+    print(f"📋 Classes: {classes}")
     
-    # Create the NEW model (automatically uses Grayscale + Separable CNN)
+    # Create the model
     model = create_model(num_classes).to(device)
     
     # Print model info
     print(get_model_summary(model))
     
-    # Optimizer (AdamW works better with the new architecture)
+    # STABLE Optimizer
     optimizer = optim.AdamW(
         model.parameters(), 
         lr=config['learning_rate'],
-        weight_decay=config['weight_decay']
+        weight_decay=config['weight_decay'],
+        betas=(0.9, 0.999),
+        eps=1e-8
     )
     
-    # Learning rate scheduler
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=config['epochs'], eta_min=1e-6
+    # BETTER Scheduler - reduces LR when loss plateaus
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, 
+        mode='min',
+        factor=0.5,      # Reduce LR by half
+        patience=5,      # Wait 5 epochs before reducing
+        min_lr=1e-7
     )
     
-    # Loss function (Label smoothing works well with the new model)
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    # STABLE Loss function
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
+    
+    # Loss tracking for smooth monitoring
+    loss_tracker = LossTracker(window_size=50)
     
     # Training tracking
     best_val_acc = 0.0
@@ -77,7 +109,12 @@ def train_grayscale_separable_model():
     train_losses = []
     val_accuracies = []
     
-    print(f"\n🚀 Starting training for {config['epochs']} epochs...")
+    print(f"\n🚀 Starting STABLE training for {config['epochs']} epochs...")
+    print(f"📊 Batch size: {config['batch_size']}")
+    print(f"🎯 Learning rate: {config['learning_rate']}")
+    print(f"✂️  Gradient clipping: {config['grad_clip_norm']}")
+    print("=" * 60)
+    
     start_time = time.time()
     
     for epoch in range(config['epochs']):
@@ -92,13 +129,14 @@ def train_grayscale_separable_model():
         for batch_idx, (data, targets) in enumerate(train_bar):
             data, targets = data.to(device), targets.to(device)
             
-            # Forward pass (model automatically converts RGB to grayscale)
+            # Forward pass
             optimizer.zero_grad()
             outputs = model(data)
             loss = criterion(outputs, targets)
             
-            # Backward pass
+            # Backward pass WITH gradient clipping
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), config['grad_clip_norm'])
             optimizer.step()
             
             # Statistics
@@ -107,11 +145,17 @@ def train_grayscale_separable_model():
             train_total += targets.size(0)
             train_correct += predicted.eq(targets).sum().item()
             
+            # Update loss tracker for smooth monitoring
+            loss_tracker.update(loss.item())
+            smooth_loss = loss_tracker.get_average()
+            
             # Update progress bar
             train_acc = 100. * train_correct / train_total
             train_bar.set_postfix({
                 'Loss': f'{loss.item():.4f}',
-                'Acc': f'{train_acc:.2f}%'
+                'Smooth': f'{smooth_loss:.4f}',
+                'Acc': f'{train_acc:.2f}%',
+                'LR': f'{optimizer.param_groups[0]["lr"]:.2e}'
             })
         
         # Validation phase
@@ -140,18 +184,20 @@ def train_grayscale_separable_model():
         epoch_train_loss = train_loss / len(train_loader)
         epoch_train_acc = 100. * train_correct / train_total
         epoch_val_acc = 100. * val_correct / val_total
+        epoch_val_loss = val_loss / len(val_loader)
         
         train_losses.append(epoch_train_loss)
         val_accuracies.append(epoch_val_acc)
         
-        # Update learning rate
-        scheduler.step()
+        # Update learning rate scheduler with validation loss
+        scheduler.step(epoch_val_loss)
         current_lr = optimizer.param_groups[0]['lr']
         
         # Print epoch results
         print(f"\nEpoch {epoch+1}/{config['epochs']}:")
         print(f"  Train Loss: {epoch_train_loss:.4f} | Train Acc: {epoch_train_acc:.2f}%")
-        print(f"  Val Acc: {epoch_val_acc:.2f}% | LR: {current_lr:.2e}")
+        print(f"  Val Loss: {epoch_val_loss:.4f} | Val Acc: {epoch_val_acc:.2f}%")
+        print(f"  Learning Rate: {current_lr:.2e}")
         
         # Save best model
         if epoch_val_acc > best_val_acc:
@@ -168,7 +214,12 @@ def train_grayscale_separable_model():
         # Early stopping
         if patience_counter >= config['patience']:
             print(f"\n⏹️  Early stopping triggered after {epoch+1} epochs")
+            print(f"📊 No improvement for {config['patience']} epochs")
             break
+        
+        # Show patience counter
+        if patience_counter > 0:
+            print(f"  ⏳ Patience: {patience_counter}/{config['patience']}")
         
         print("-" * 60)
     
@@ -185,10 +236,12 @@ def train_grayscale_separable_model():
     history = {
         'train_losses': train_losses,
         'val_accuracies': val_accuracies,
-        'best_val_acc': best_val_acc,
+        'best_val_acc': float(best_val_acc),
         'classes': classes,
         'config': config,
-        'model_type': 'Grayscale_Separable_CNN'
+        'model_type': 'Grayscale_Separable_CNN',
+        'total_epochs': epoch + 1,
+        'training_time_minutes': total_time / 60
     }
     
     history_path = os.path.join(config['model_save_path'], 'training_history.json')
@@ -201,10 +254,13 @@ def train_grayscale_separable_model():
 
 def main():
     """Main training function"""
-    print("🚀 GRAYSCALE SEPARABLE CNN TRAINING")
-    print("🎯 Automatic RGB → Grayscale conversion")
-    print("⚡ 10x fewer parameters than standard CNN")
-    print("🏃‍♂️ Much faster training")
+    print("🚀 STABLE GRAYSCALE SEPARABLE CNN TRAINING")
+    print("🎯 Features:")
+    print("   • Automatic RGB → Grayscale conversion")
+    print("   • 10x fewer parameters than standard CNN")
+    print("   • Gradient clipping for stability")
+    print("   • Adaptive learning rate")
+    print("   • Smooth loss monitoring")
     print("=" * 60)
     
     # Train the model
@@ -213,8 +269,10 @@ def main():
     if model is not None:
         print(f"\n🎯 FINAL RESULT: {final_accuracy:.2f}%")
         
-        if final_accuracy >= 70:
-            print("🏆 EXCELLENT! Great performance!")
+        if final_accuracy >= 80:
+            print("🏆 EXCELLENT! Outstanding performance!")
+        elif final_accuracy >= 70:
+            print("🥇 VERY GOOD! Great performance!")
         elif final_accuracy >= 60:
             print("👍 GOOD! Solid performance!")
         elif final_accuracy >= 50:
@@ -229,6 +287,13 @@ def main():
         print(f"   Architecture: Grayscale + Separable CNN")
         print(f"   Features: Depthwise + Pointwise convolutions")
         print(f"   Efficiency: ~10x faster than standard CNN")
+        print(f"   Stability: Gradient clipping + adaptive LR")
+        
+        print(f"\n💡 Tips for better performance:")
+        print(f"   • Add more diverse training data")
+        print(f"   • Try different augmentations")
+        print(f"   • Experiment with batch sizes")
+        print(f"   • Consider ensemble methods")
 
 if __name__ == "__main__":
     main()

@@ -48,9 +48,9 @@ class GrayscaleCNN(nn.Module):
         super().__init__()
         self.num_classes = num_classes
         
-        # Initial conv (RGB to grayscale handled here)
+        # Initial conv - FIXED: 1 channel input (grayscale) to 32 channels
         self.initial = nn.Sequential(
-            nn.Conv2d(3, 32, 3, stride=2, padding=1),
+            nn.Conv2d(1, 32, 3, stride=2, padding=1),  # Changed from 3 to 1 input channels
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.MaxPool2d(2)
@@ -97,10 +97,10 @@ class GrayscaleCNN(nn.Module):
         return x
         
     def forward(self, x):
-        # Convert to grayscale
+        # Convert to grayscale (3 channels -> 1 channel)
         x = self.rgb_to_grayscale(x)
         
-        # Expand to 32 channels
+        # x is [batch, 1, height, width] - perfect for Conv2d(1, 32, ...)
         x = self.initial(x)
         
         # Separable convolution blocks
