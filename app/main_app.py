@@ -8,6 +8,7 @@ import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
+sys.path.append(os.path.join(parent_dir, 'src'))  # Add src directory to path
 
 from src.pest_identifier import PestIdentifier
 from src.chat_bot import OrganicPestChatBot
@@ -20,7 +21,7 @@ class PestManagementApp:
     
     def load_model(self):
         """Load the trained pest identification model"""
-        model_path = "models/saved_models/best_model.pth"
+        model_path = "models/saved_models/65CNNDraft1.pth"
         classes_path = "models/saved_models/classes.json"
         
         if os.path.exists(model_path) and os.path.exists(classes_path):
