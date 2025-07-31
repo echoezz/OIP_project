@@ -9,3 +9,4 @@ datasets/
 
 # ignore python cache directories
 __pycache__/
+/myenv
