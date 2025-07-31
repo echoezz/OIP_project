@@ -6,3 +6,6 @@
 
 #ignore datasets
 datasets/
+
+# ignore python cache directories
+__pycache__/
