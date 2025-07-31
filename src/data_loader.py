@@ -1,33 +1,36 @@
-# data_loader.py - TensorFlow Version
+# data_loader.py - Heavy Augmentation Version
 import tensorflow as tf
 import os
 import numpy as np
-from pathlib import Path
 
 def create_data_generators(data_dir, batch_size=32, validation_split=0.2, image_size=(224, 224)):
-    """Create TensorFlow data generators with augmentation"""
+    """Create heavily augmented data generators to prevent overfitting"""
     
-    print("📊 Creating TensorFlow data generators...")
+    print("📊 Creating ANTI-OVERFITTING data generators...")
     
-    # Training data generator with augmentation
+    # HEAVY augmentation for training
     train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
         rescale=1./255,
-        rotation_range=20,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
+        rotation_range=40,              # MORE rotation
+        width_shift_range=0.3,          # MORE shifting
+        height_shift_range=0.3,         # MORE shifting
+        shear_range=0.3,                # ADD shear transformation
+        zoom_range=0.3,                 # MORE zoom
         horizontal_flip=True,
-        zoom_range=0.2,
-        brightness_range=[0.8, 1.2],
+        vertical_flip=True,             # ADD vertical flip
+        brightness_range=[0.6, 1.4],    # MORE brightness variation
+        channel_shift_range=30,         # ADD color shifting
+        fill_mode='nearest',
         validation_split=validation_split
     )
     
-    # Validation data generator (no augmentation)
+    # Clean validation data (no augmentation)
     val_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
         rescale=1./255,
         validation_split=validation_split
     )
     
-    # Create training dataset
+    # Create generators
     train_generator = train_datagen.flow_from_directory(
         data_dir,
         target_size=image_size,
@@ -38,7 +41,6 @@ def create_data_generators(data_dir, batch_size=32, validation_split=0.2, image_
         seed=42
     )
     
-    # Create validation dataset
     val_generator = val_datagen.flow_from_directory(
         data_dir,
         target_size=image_size,
@@ -49,51 +51,41 @@ def create_data_generators(data_dir, batch_size=32, validation_split=0.2, image_
         seed=42
     )
     
-    # Get class information
     classes = list(train_generator.class_indices.keys())
-    class_indices = train_generator.class_indices
     
-    print(f"✅ Data generators created:")
+    print(f"✅ HEAVY AUGMENTATION applied:")
+    print(f"   🔄 Rotation: ±40°")
+    print(f"   📐 Shear: ±30%")
+    print(f"   🔍 Zoom: ±30%")
+    print(f"   💡 Brightness: 60-140%")
+    print(f"   🎨 Color shift: ±30")
+    print(f"   ↔️ Horizontal flip: Yes")
+    print(f"   ↕️ Vertical flip: Yes")
     print(f"   📈 Training samples: {train_generator.samples}")
     print(f"   📊 Validation samples: {val_generator.samples}")
-    print(f"   🏷️  Classes: {len(classes)}")
-    print(f"   📋 Class names: {classes}")
     
     return train_generator, val_generator, classes
 
 def get_balanced_data_loaders(data_dir, batch_size=32, validation_split=0.2, auto_balance=True):
-    """Get balanced TensorFlow data loaders (compatible with your existing code)"""
+    """Get anti-overfitting data loaders"""
     
-    print("🔄 Loading balanced TensorFlow datasets...")
+    print("🛡️ Loading ANTI-OVERFITTING datasets...")
     
-    # Print dataset statistics
-    total_samples = 0
+    # Print dataset stats
     class_counts = {}
-    
     for class_name in os.listdir(data_dir):
         class_path = os.path.join(data_dir, class_name)
         if os.path.isdir(class_path):
             count = len([f for f in os.listdir(class_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
             class_counts[class_name] = count
-            total_samples += count
     
     print(f"📊 DATASET SUMMARY:")
-    print(f"   Classes: {len(class_counts)}")
-    print(f"   Total samples: {total_samples}")
-    
-    print(f"\n📈 CLASS DISTRIBUTION:")
     for class_name, count in class_counts.items():
         print(f"   {class_name}: {count} samples")
     
-    # Create data generators
+    # Create generators with heavy augmentation
     train_gen, val_gen, classes = create_data_generators(
         data_dir, batch_size, validation_split
     )
-    
-    print(f"\n📊 FINAL LOADER STATISTICS:")
-    print(f"   Training samples: {train_gen.samples}")
-    print(f"   Validation samples: {val_gen.samples}")
-    print(f"   Classes: {len(classes)}")
-    print(f"   Batch size: {batch_size}")
     
     return train_gen, val_gen, classes

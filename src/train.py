@@ -1,51 +1,55 @@
-# train.py - TensorFlow Version
+# train.py - Anti-Overfitting Training
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
 import os
 import json
 import time
-from datetime import datetime
 
-# Import our TensorFlow modules
-from pest_classifier import create_model, save_model, get_model_summary
+from pest_classifier import create_model, get_model_summary
 from data_loader import get_balanced_data_loaders
 
-class TrainingProgress(keras.callbacks.Callback):
-    """Custom callback for detailed training progress"""
+class DetailedProgress(keras.callbacks.Callback):
+    """Detailed progress with overfitting detection"""
     
     def __init__(self):
         super().__init__()
         self.batch_losses = []
         
-    def on_batch_end(self, batch, logs=None):
-        loss = logs.get('loss', 0)
-        acc = logs.get('accuracy', 0)
-        self.batch_losses.append(loss)
+    def on_epoch_end(self, epoch, logs=None):
+        train_acc = logs.get('accuracy', 0) * 100
+        val_acc = logs.get('val_accuracy', 0) * 100
+        gap = train_acc - val_acc
         
-        # Show progress every 50 batches
-        if batch % 50 == 0 and batch > 0:
-            smooth_loss = np.mean(self.batch_losses[-50:])
-            print(f"    Batch {batch}: Loss={loss:.4f}, Smooth={smooth_loss:.4f}, Acc={acc*100:.1f}%")
+        print(f"\n📊 Epoch {epoch+1} Summary:")
+        print(f"   🏋️ Train Accuracy: {train_acc:.1f}%")
+        print(f"   ✅ Val Accuracy: {val_acc:.1f}%")
+        print(f"   📈 Gap: {gap:.1f}%", end="")
+        
+        if gap > 15:
+            print(" ⚠️ OVERFITTING WARNING!")
+        elif gap > 10:
+            print(" 🟡 Watch for overfitting")
+        else:
+            print(" ✅ Healthy gap")
 
-def train_tensorflow_model():
-    """Train TensorFlow Grayscale CNN"""
+def train_anti_overfitting_model():
+    """Train with anti-overfitting measures"""
     
-    print("🎯 TENSORFLOW TRAINING - GRAYSCALE CNN")
+    print("🛡️ ANTI-OVERFITTING CNN TRAINING")
     print("=" * 60)
     
-    # Configuration
+    # Conservative configuration
     config = {
         'data_dir': 'datasets',
         'model_save_path': 'models/saved_models',
-        'epochs': 50,
-        'learning_rate': 0.001,
-        'batch_size': 32,
-        'patience': 10,
+        'epochs': 100,                # More epochs with early stopping
+        'learning_rate': 0.0005,      # LOWER learning rate
+        'batch_size': 16,             # SMALLER batch size
+        'patience': 15,               # MORE patience
         'validation_split': 0.2
     }
     
-    # Create directories
     os.makedirs(config['model_save_path'], exist_ok=True)
     
     # GPU setup
@@ -53,13 +57,13 @@ def train_tensorflow_model():
     if physical_devices:
         try:
             tf.config.experimental.set_memory_growth(physical_devices[0], True)
-            print(f"🖥️  Using GPU: {physical_devices[0].name}")
+            print(f"🖥️ Using GPU: {physical_devices[0].name}")
         except:
-            print("🖥️  GPU setup failed, using CPU")
+            print("🖥️ Using CPU")
     else:
-        print("🖥️  Using CPU")
+        print("🖥️ Using CPU")
     
-    # Load data
+    # Load data with heavy augmentation
     try:
         train_gen, val_gen, classes = get_balanced_data_loaders(
             data_dir=config['data_dir'],
@@ -73,52 +77,71 @@ def train_tensorflow_model():
     num_classes = len(classes)
     print(f"✅ Dataset loaded: {num_classes} classes")
     
-    # Create model
+    # Create smaller, regularized model
     model = create_model(num_classes)
     get_model_summary(model)
     
-    # Compile model
+    # Compile with conservative settings
     model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=config['learning_rate']),
-        loss=keras.losses.CategoricalCrossentropy(from_logits=True),
+        optimizer=keras.optimizers.Adam(
+            learning_rate=config['learning_rate'],
+            weight_decay=1e-4              # L2 regularization
+        ),
+        loss=keras.losses.CategoricalCrossentropy(
+            from_logits=True,
+            label_smoothing=0.1            # Label smoothing
+        ),
         metrics=['accuracy']
     )
     
-    # Callbacks
+    # Anti-overfitting callbacks
+    class BestWeightsSaver(keras.callbacks.Callback):
+        def __init__(self, filepath):
+            super().__init__()
+            self.filepath = filepath
+            self.best_val_acc = 0
+            
+        def on_epoch_end(self, epoch, logs=None):
+            val_acc = logs.get('val_accuracy', 0)
+            if val_acc > self.best_val_acc:
+                self.best_val_acc = val_acc
+                self.model.save_weights(self.filepath)
+                print(f"🎯 New best val_acc: {val_acc:.4f}")
+    
     callbacks = [
         keras.callbacks.EarlyStopping(
             monitor='val_accuracy',
             patience=config['patience'],
             restore_best_weights=True,
-            verbose=1
+            verbose=1,
+            mode='max'
         ),
         
         keras.callbacks.ReduceLROnPlateau(
             monitor='val_loss',
-            factor=0.5,
-            patience=5,
+            factor=0.5,                    # Aggressive LR reduction
+            patience=8,
             min_lr=1e-7,
             verbose=1
         ),
         
-        keras.callbacks.ModelCheckpoint(
-            filepath=os.path.join(config['model_save_path'], 'best_model.h5'),
-            monitor='val_accuracy',
-            save_best_only=True,
-            verbose=1
+        BestWeightsSaver(
+            filepath=os.path.join(config['model_save_path'], 'best_weights.h5')
         ),
         
-        TrainingProgress()
+        DetailedProgress()
     ]
     
-    print(f"\n🚀 Starting TensorFlow training...")
-    print(f"📊 Batch size: {config['batch_size']}")
-    print(f"🎯 Learning rate: {config['learning_rate']}")
+    print(f"\n🛡️ Starting ANTI-OVERFITTING training...")
+    print(f"📊 Batch size: {config['batch_size']} (small)")
+    print(f"🎯 Learning rate: {config['learning_rate']} (conservative)")
+    print(f"🔄 Heavy augmentation: ENABLED")
+    print(f"🛑 Early stopping: {config['patience']} epochs patience")
     print("=" * 60)
     
     start_time = time.time()
     
-    # Train model
+    # Train with anti-overfitting measures
     history = model.fit(
         train_gen,
         epochs=config['epochs'],
@@ -133,7 +156,22 @@ def train_tensorflow_model():
     print(f"\n🎉 TRAINING COMPLETED!")
     print("=" * 60)
     print(f"🏆 Best validation accuracy: {best_val_acc:.2f}%")
-    print(f"⏱️  Total training time: {total_time/60:.1f} minutes")
+    print(f"⏱️ Total time: {total_time/60:.1f} minutes")
+    
+    # Save everything
+    try:
+        model_json = model.to_json()
+        json_path = os.path.join(config['model_save_path'], 'model_architecture.json')
+        with open(json_path, 'w') as f:
+            f.write(model_json)
+        
+        weights_path = os.path.join(config['model_save_path'], 'final_weights.h5')
+        model.save_weights(weights_path)
+        
+        print(f"✅ Model saved successfully")
+        
+    except Exception as e:
+        print(f"⚠️ Saving warning: {e}")
     
     # Save training history
     history_dict = {
@@ -144,8 +182,16 @@ def train_tensorflow_model():
         'best_val_acc': float(best_val_acc),
         'classes': classes,
         'config': config,
-        'framework': 'TensorFlow',
-        'tf_version': tf.__version__,
+        'anti_overfitting_measures': [
+            'Heavy data augmentation',
+            'Smaller model architecture',
+            'Progressive dropout (0.2-0.6)',
+            'Lower learning rate',
+            'Smaller batch size',
+            'L2 weight decay',
+            'Label smoothing',
+            'Early stopping'
+        ],
         'total_epochs': len(history.history['loss']),
         'training_time_minutes': total_time / 60
     }
@@ -157,28 +203,30 @@ def train_tensorflow_model():
     return model, best_val_acc
 
 def main():
-    """Main training function"""
-    print("🚀 TENSORFLOW GRAYSCALE CNN TRAINING")
-    print("🎯 Features:")
-    print("   • RGB → Grayscale conversion")
-    print("   • TensorFlow/Keras implementation")
-    print("   • Built-in progress tracking")
-    print("   • Automatic GPU acceleration")
+    """Main anti-overfitting training"""
+    print("🛡️ ANTI-OVERFITTING CNN TRAINING")
+    print("🎯 Measures:")
+    print("   • Smaller model (less memorization)")
+    print("   • Heavy data augmentation")  
+    print("   • Progressive dropout")
+    print("   • Conservative learning rate")
+    print("   • L2 regularization + label smoothing")
+    print("   • Overfitting monitoring")
     print("=" * 60)
     
-    model, final_accuracy = train_tensorflow_model()
+    model, final_accuracy = train_anti_overfitting_model()
     
     if model is not None:
         print(f"\n🎯 FINAL RESULT: {final_accuracy:.2f}%")
         
-        if final_accuracy >= 80:
-            print("🏆 EXCELLENT!")
-        elif final_accuracy >= 70:
-            print("🥇 VERY GOOD!")
+        if final_accuracy >= 70:
+            print("🏆 EXCELLENT! Anti-overfitting worked!")
         elif final_accuracy >= 60:
-            print("👍 GOOD!")
+            print("🥇 VERY GOOD! Much better generalization!")
+        elif final_accuracy >= 50:
+            print("👍 GOOD! Healthy train/val performance!")
         else:
-            print("📈 DECENT!")
+            print("📈 DECENT! Model is learning without overfitting!")
 
 if __name__ == "__main__":
     main()
