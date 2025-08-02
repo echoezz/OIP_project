@@ -21,7 +21,7 @@ class PestManagementApp:
     
     def load_model(self):
         """Load the trained pest identification model"""
-        model_path = "models/saved_models/65CNNDraft1.pth"
+        model_path = "models/saved_models/73CNNDraft2.pth"
         classes_path = "models/saved_models/classes.json"
         
         if os.path.exists(model_path) and os.path.exists(classes_path):
