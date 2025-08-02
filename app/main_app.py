@@ -31,13 +31,13 @@ class PestManagementApp:
             print("⚠️ Model not found. Please train the model first.")
             self.identifier = None
     
-    def identify_pest_and_get_treatment(self, image):
-        """Enhanced pest identification with detailed results"""
+    def identify_pest_and_get_treatment(self, image, history):
+        """Enhanced pest identification with integrated chat"""
         if image is None:
-            return "Please upload an image first.", "", ""
+            return "Please upload an image first.", "", history
         
         if self.identifier is None:
-            return "❌ Model not available. Please train the model first.", "", ""
+            return "❌ Model not available. Please train the model first.", "", history
         
         # Get enhanced identification with top predictions
         result = self.identifier.get_top_predictions(image, top_k=3)
@@ -70,11 +70,22 @@ class PestManagementApp:
             
             identification_result += f"\n\n**Analysis:** {result['confidence_description']}"
             
+            # Initialize chat history if needed
+            if history is None:
+                history = []
+            
             # Get treatment advice only if confident enough
             if result['meets_threshold']:
                 treatment_advice = self.chatbot.get_pest_treatment(pest_name)
+                
+                # Add automatic chat response about the identification
+                auto_message = f"I've identified this as {pest_name.replace('_', ' ')} with {confidence:.1%} confidence. Here's what I recommend for treatment:"
+                history.append({"role": "assistant", "content": auto_message})
+                
                 followup_questions = self.chatbot.get_followup_questions(pest_name)
-                followup_text = "**💬 You can also ask:**\n" + "\n".join([f"• {q}" for q in followup_questions])
+                followup_message = "💬 **You can also ask me:**\n" + "\n".join([f"• {q}" for q in followup_questions])
+                history.append({"role": "assistant", "content": followup_message})
+                
             else:
                 treatment_advice = f"""
 ## ⚠️ **Low Confidence Identification**
@@ -94,14 +105,20 @@ The model is not confident enough about this identification. Here are some sugge
 • Maintain good garden hygiene
 
 ### 💬 **Get Help:**
-Ask specific questions in the chat tab, or consult with a local gardening expert.
+Ask specific questions in the chat, or consult with a local gardening expert.
 """
-                followup_text = "**💬 Quick help:** Try asking 'What are common garden pests?' or 'General organic treatments'"
+                # Add low confidence message to chat
+                auto_message = f"I detected what might be {pest_name.replace('_', ' ')}, but I'm only {confidence:.1%} confident. Could you try a clearer photo or ask me general questions about pest control?"
+                history.append({"role": "assistant", "content": auto_message})
             
-            return identification_result, treatment_advice, followup_text
+            return identification_result, treatment_advice, history
         else:
             error_msg = f"❌ Could not identify pest: {result.get('error', 'Unknown error')}"
-            return error_msg, "", ""
+            error_chat = "I couldn't identify the pest in this image. Please try uploading a clearer photo or ask me general questions about pest management."
+            if history is None:
+                history = []
+            history.append({"role": "assistant", "content": error_chat})
+            return error_msg, "", history
     
     def chat_response(self, message, history):
         """Handle chat interactions with new message format"""
@@ -183,6 +200,7 @@ Ask specific questions in the chat tab, or consult with a local gardening expert
             # Main tabs
             with gr.Tab("📸 Enhanced Pest Identification"):
                 with gr.Row():
+                    # Left column - Image upload and identification
                     with gr.Column(scale=1):
                         image_input = gr.Image(
                             type="pil",
@@ -195,6 +213,12 @@ Ask specific questions in the chat tab, or consult with a local gardening expert
                             "🔍 Enhanced Identify & Get Treatment",
                             variant="primary",
                             size="lg"
+                        )
+                        
+                        # Identification results
+                        identification_output = gr.Markdown(
+                            label="🔍 Enhanced Identification Result",
+                            value="Upload an image to start enhanced pest identification..."
                         )
                         
                         # Enhanced tips section
@@ -212,57 +236,47 @@ Ask specific questions in the chat tab, or consult with a local gardening expert
                         </div>
                         """)
                     
+                    # Right column - Chat interface and treatment info
                     with gr.Column(scale=1):
-                        identification_output = gr.Markdown(
-                            label="🔍 Enhanced Identification Result",
-                            value="Upload an image to start enhanced pest identification..."
+                        gr.HTML("""
+                        <div style="text-align: center; margin-bottom: 15px;">
+                        <h3>💬 Ask Questions About Your Pest</h3>
+                        <p>Get instant advice about treatment, prevention, and organic solutions!</p>
+                        </div>
+                        """)
+                        
+                        # Integrated chat interface
+                        chatbot_interface = gr.Chatbot(
+                            height=350,
+                            label="Pest Management Expert",
+                            type="messages",
+                            placeholder="Chat will appear here after identification or ask questions directly..."
                         )
                         
+                        # Chat input
+                        with gr.Row():
+                            msg_input = gr.Textbox(
+                                placeholder="Ask about treatments, prevention, or pest management...",
+                                label="Your Question",
+                                lines=2,
+                                scale=4
+                            )
+                            send_btn = gr.Button("💬 Send", variant="secondary", scale=1)
+                        
+                        # Quick question buttons
+                        with gr.Row():
+                            quick_btn1 = gr.Button("🌿 Organic Treatments", size="sm")
+                            quick_btn2 = gr.Button("🛡️ Prevention Tips", size="sm")
+                        
+                        with gr.Row():
+                            quick_btn3 = gr.Button("⏰ When to Apply", size="sm")
+                            quick_btn4 = gr.Button("🌸 Companion Plants", size="sm")
+                        
+                        # Treatment output below chat
                         treatment_output = gr.Markdown(
-                            label="🌿 Organic Treatment Guide",
-                            value="Treatment recommendations will appear here..."
+                            label="🌿 Detailed Treatment Guide",
+                            value="Treatment recommendations will appear here after identification..."
                         )
-                        
-                        followup_output = gr.Markdown(
-                            label="💬 Ask More Questions",
-                            value="Follow-up questions will appear here..."
-                        )
-            
-            # Chat tab (same as before but updated)
-            with gr.Tab("💬 Ask Questions"):
-                gr.HTML("""
-                <div style="text-align: center; margin-bottom: 20px;">
-                <h3>🤔 Have Questions About Organic Pest Control?</h3>
-                <p>Ask me anything about organic pest management, prevention, or treatment methods!</p>
-                </div>
-                """)
-                
-                chatbot_interface = gr.Chatbot(
-                    height=400,
-                    label="Organic Pest Management Expert",
-                    type="messages"
-                )
-                
-                with gr.Row():
-                    msg_input = gr.Textbox(
-                        placeholder="Ask about organic pest control, prevention tips, specific treatments...",
-                        label="Your Question",
-                        lines=2
-                    )
-                    
-                with gr.Row():
-                    send_btn = gr.Button("💬 Send", variant="primary")
-                    clear_btn = gr.Button("🗑️ Clear Chat")
-                
-                # Quick question buttons
-                with gr.Row():
-                    gr.HTML("<h4>🚀 Quick Questions:</h4>")
-                
-                with gr.Row():
-                    quick_btn1 = gr.Button("How to prevent aphids?", size="sm")
-                    quick_btn2 = gr.Button("Best organic treatments?", size="sm")
-                    quick_btn3 = gr.Button("When to apply treatments?", size="sm")
-                    quick_btn4 = gr.Button("Companion planting tips?", size="sm")
             
             # Enhanced About tab
             with gr.Tab("ℹ️ About Enhanced Version"):
@@ -318,13 +332,14 @@ Ask specific questions in the chat tab, or consult with a local gardening expert
                 </div>
                 """)
             
-            # Event handlers
+            # Event handlers for integrated pest identification tab
             identify_btn.click(
                 fn=self.identify_pest_and_get_treatment,
-                inputs=[image_input],
-                outputs=[identification_output, treatment_output, followup_output]
+                inputs=[image_input, chatbot_interface],
+                outputs=[identification_output, treatment_output, chatbot_interface]
             )
             
+            # Chat functionality in pest identification tab
             send_btn.click(
                 fn=self.chat_response,
                 inputs=[msg_input, chatbot_interface],
@@ -337,36 +352,31 @@ Ask specific questions in the chat tab, or consult with a local gardening expert
                 outputs=[chatbot_interface, msg_input]
             )
             
-            clear_btn.click(
-                fn=lambda: ([], ""),
-                outputs=[chatbot_interface, msg_input]
-            )
-            
-            # Quick question handlers
+            # Quick question handlers for pest identification tab
             quick_btn1.click(
-                fn=lambda hist: self.handle_quick_question("How to prevent aphids?", hist),
-                inputs=[chatbot_interface],
-                outputs=[chatbot_interface]
-            )
-            
-            quick_btn2.click(
                 fn=lambda hist: self.handle_quick_question("What are the best organic treatments?", hist),
                 inputs=[chatbot_interface],
                 outputs=[chatbot_interface]
             )
             
+            quick_btn2.click(
+                fn=lambda hist: self.handle_quick_question("How can I prevent pest problems naturally?", hist),
+                inputs=[chatbot_interface],
+                outputs=[chatbot_interface]
+            )
+            
             quick_btn3.click(
-                fn=lambda hist: self.handle_quick_question("When to apply treatments?", hist),
+                fn=lambda hist: self.handle_quick_question("When is the best time to apply treatments?", hist),
                 inputs=[chatbot_interface],
                 outputs=[chatbot_interface]
             )
             
             quick_btn4.click(
-                fn=lambda hist: self.handle_quick_question("Companion planting tips?", hist),
+                fn=lambda hist: self.handle_quick_question("What companion plants help repel pests?", hist),
                 inputs=[chatbot_interface],
                 outputs=[chatbot_interface]
             )
-        
+            
         return interface
 
 def main():
