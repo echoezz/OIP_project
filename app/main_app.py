@@ -125,8 +125,13 @@ Ask specific questions in the chat, or consult with a local gardening expert.
         if not message.strip():
             return history, ""
         
+        print(f"🗨️ User message: {message}")
+        
         # Get bot response
         bot_response = self.chatbot.respond_to_question(message)
+        
+        print(f"🤖 Bot response received: {len(bot_response)} characters")
+        print(f"🔍 Response preview: {bot_response[:100]}...")
         
         # Add to history using new message format
         if history is None:
@@ -135,6 +140,8 @@ Ask specific questions in the chat, or consult with a local gardening expert.
         history.append({"role": "user", "content": message})
         history.append({"role": "assistant", "content": bot_response})
         
+        print(f"📝 Chat history updated, total messages: {len(history)}")
+        
         return history, ""
     
     def handle_quick_question(self, question, history):
@@ -142,12 +149,42 @@ Ask specific questions in the chat, or consult with a local gardening expert.
         if history is None:
             history = []
         
+        print(f"🚀 Quick question: {question}")
+        
         # Get bot response
         bot_response = self.chatbot.respond_to_question(question)
+        
+        print(f"🤖 Quick response received: {len(bot_response)} characters")
+        print(f"🔍 Response preview: {bot_response[:100]}...")
         
         # Add to history
         history.append({"role": "user", "content": question})
         history.append({"role": "assistant", "content": bot_response})
+        
+        print(f"📝 Quick chat history updated, total messages: {len(history)}")
+        
+        return history
+    
+    def test_chat_connection(self, history):
+        """Test function to verify chat is working"""
+        if history is None:
+            history = []
+        
+        # Test connection
+        is_connected = self.chatbot.check_ollama_connection()
+        
+        if is_connected:
+            test_message = "Hello! Can you help me with organic pest control?"
+            test_response = self.chatbot.respond_to_question(test_message)
+            
+            history.append({"role": "user", "content": "🧪 Test: " + test_message})
+            history.append({"role": "assistant", "content": test_response})
+            
+            print(f"✅ Test successful - Response: {test_response[:50]}...")
+        else:
+            error_msg = "❌ Ollama connection test failed. Please ensure Ollama is running with 'ollama serve'"
+            history.append({"role": "assistant", "content": error_msg})
+            print(error_msg)
         
         return history
     
@@ -190,10 +227,10 @@ Ask specific questions in the chat, or consult with a local gardening expert.
             
             # Header with enhancement badge
             gr.HTML("""
-            <div class="pest-title">🌱 Enhanced Organic Pest Management Assistant</div>
+            <div class="pest-title">🌱 AI-Powered Organic Pest Management Assistant</div>
             <div class="pest-subtitle">
-                <span class="enhanced-badge">🚀 AI Enhanced with TTA</span><br>
-                Upload a photo to identify pests and get organic treatment recommendations
+                <span class="enhanced-badge">🤖 Powered by Ollama LLaMA 3.2:3B</span><br>
+                Upload a photo to identify pests and chat with AI for organic treatment recommendations
             </div>
             """)
             
@@ -240,24 +277,24 @@ Ask specific questions in the chat, or consult with a local gardening expert.
                     with gr.Column(scale=1):
                         gr.HTML("""
                         <div style="text-align: center; margin-bottom: 15px;">
-                        <h3>💬 Ask Questions About Your Pest</h3>
-                        <p>Get instant advice about treatment, prevention, and organic solutions!</p>
+                        <h3>💬 AI Chat Assistant</h3>
+                        <p>Ask the AI anything about organic pest management! Powered by Ollama LLaMA 3.2:3B</p>
                         </div>
                         """)
                         
                         # Integrated chat interface
                         chatbot_interface = gr.Chatbot(
                             height=350,
-                            label="Pest Management Expert",
+                            label="🤖 Ollama AI Pest Expert",
                             type="messages",
-                            placeholder="Chat will appear here after identification or ask questions directly..."
+                            placeholder="Chat with the AI about pest management - powered by Ollama LLaMA 3.2:3B..."
                         )
                         
                         # Chat input
                         with gr.Row():
                             msg_input = gr.Textbox(
-                                placeholder="Ask about treatments, prevention, or pest management...",
-                                label="Your Question",
+                                placeholder="Ask the AI anything about organic pest management...",
+                                label="Chat with AI",
                                 lines=2,
                                 scale=4
                             )
@@ -272,6 +309,9 @@ Ask specific questions in the chat, or consult with a local gardening expert.
                             quick_btn3 = gr.Button("⏰ When to Apply", size="sm")
                             quick_btn4 = gr.Button("🌸 Companion Plants", size="sm")
                         
+                        with gr.Row():
+                            test_btn = gr.Button("🧪 Test Ollama Connection", size="sm", variant="secondary")
+                        
                         # Treatment output below chat
                         treatment_output = gr.Markdown(
                             label="🌿 Detailed Treatment Guide",
@@ -279,55 +319,64 @@ Ask specific questions in the chat, or consult with a local gardening expert.
                         )
             
             # Enhanced About tab
-            with gr.Tab("ℹ️ About Enhanced Version"):
+            with gr.Tab("ℹ️ About AI-Powered Version"):
                 gr.HTML("""
                 <div style="padding: 20px;">
-                <h2>🌱 About Enhanced Organic Pest Management Assistant</h2>
+                <h2>🌱 About AI-Powered Organic Pest Management Assistant</h2>
                 
                 <div style="background: linear-gradient(45deg, #e8f5e8, #f0f8f0); padding: 15px; border-radius: 10px; margin: 15px 0;">
-                <h3>🚀 New Enhanced Features:</h3>
+                <h3>🤖 AI-Powered Features:</h3>
                 <ul>
-                <li><strong>🎯 Test-Time Augmentation (TTA):</strong> Analyzes 8 different image variations for higher accuracy</li>
-                <li><strong>🧠 Focused CNN with Attention:</strong> Advanced neural network architecture</li>
-                <li><strong>📊 Top-3 Predictions:</strong> See multiple possible identifications with confidence scores</li>
-                <li><strong>🎪 Ensemble Predictions:</strong> Combines multiple model predictions</li>
-                <li><strong>📈 Enhanced Data Augmentation:</strong> 15x training data multiplication</li>
-                <li><strong>⚡ Smart Confidence Thresholding:</strong> Only provides treatment when confident</li>
+                <li><strong>🧠 Ollama LLaMA 3.1 8B:</strong> Advanced language model for intelligent conversations</li>
+                <li><strong>💬 Dynamic Chat:</strong> Real-time, context-aware responses about pest management</li>
+                <li><strong>� Expert Knowledge:</strong> Trained on organic pest control best practices</li>
+                <li><strong>🔄 Conversation Memory:</strong> Remembers context throughout your session</li>
+                <li><strong>🌿 Organic Focus:</strong> Specialized in chemical-free, sustainable solutions</li>
+                <li><strong>⚡ Fallback System:</strong> Works even when Ollama is offline</li>
                 </ul>
                 </div>
                 
-                <h3>🎯 What This Enhanced App Does:</h3>
+                <h3>🎯 What This AI Assistant Does:</h3>
                 <ul>
-                <li><strong>AI Pest Identification:</strong> Enhanced CNN with 50%+ accuracy improvement</li>
-                <li><strong>Confidence Assessment:</strong> High/Medium/Low confidence levels with explanations</li>
-                <li><strong>Organic Treatments:</strong> Safe, chemical-free treatment recommendations</li>
-                <li><strong>Prevention Tips:</strong> Learn how to prevent pest problems naturally</li>
-                <li><strong>Expert Chat:</strong> Intelligent conversation with context awareness</li>
+                <li><strong>🤖 Intelligent Chat:</strong> Natural language conversations about pest management</li>
+                <li><strong>🔍 Pest Identification:</strong> Visual identification with AI-powered analysis</li>
+                <li><strong>🌱 Organic Treatments:</strong> Personalized, chemical-free treatment recommendations</li>
+                <li><strong>🛡️ Prevention Strategies:</strong> Proactive advice to prevent pest problems</li>
+                <li><strong>🌸 Companion Planting:</strong> Expert advice on beneficial plant combinations</li>
+                <li><strong>📅 Timing Guidance:</strong> When and how to apply treatments effectively</li>
                 </ul>
                 
-                <h3>🧠 Technical Improvements:</h3>
+                <h3>🚀 AI Technology Stack:</h3>
                 <ul>
-                <li><strong>Focused CNN Architecture:</strong> Optimized for small datasets</li>
-                <li><strong>Attention Mechanism:</strong> Focuses on important image features</li>
-                <li><strong>Label Smoothing:</strong> Better generalization during training</li>
-                <li><strong>Gradient Accumulation:</strong> Stable training with limited data</li>
-                <li><strong>Cosine Annealing:</strong> Optimal learning rate scheduling</li>
+                <li><strong>Language Model:</strong> Ollama LLaMA 3.1 8B (locally hosted)</li>
+                <li><strong>Computer Vision:</strong> MobileNet for pest identification</li>
+                <li><strong>Framework:</strong> TensorFlow + Gradio interface</li>
+                <li><strong>Knowledge Base:</strong> Organic pest management expertise</li>
+                <li><strong>Context Awareness:</strong> Maintains conversation history</li>
                 </ul>
                 
-                <h3>📊 Performance Metrics:</h3>
+                <h3>� Setup Requirements:</h3>
                 <ul>
-                <li><strong>Target Accuracy:</strong> 50%+ confidence (up from 13.5%)</li>
-                <li><strong>Data Efficiency:</strong> 15x augmentation from original images</li>
-                <li><strong>Prediction Speed:</strong> ~2-3 seconds with TTA</li>
-                <li><strong>Model Size:</strong> Optimized for deployment</li>
+                <li><strong>Ollama Installation:</strong> Install Ollama and download llama3.1:8b model</li>
+                <li><strong>Model Running:</strong> Ensure Ollama is running on http://localhost:11434</li>
+                <li><strong>Fallback Mode:</strong> App works with pre-defined responses if Ollama is unavailable</li>
                 </ul>
                 
                 <div style="background-color: #e8f5e8; padding: 15px; border-radius: 8px; margin-top: 20px;">
-                <h4>💡 Pro Tips for Best Results:</h4>
-                <p><strong>📸 Photography:</strong> Clear, well-lit, close-up photos of pests work best</p>
-                <p><strong>🎯 Confidence:</strong> Higher confidence = more reliable identification and treatment advice</p>
-                <p><strong>🔄 Multiple Angles:</strong> Try different angles if confidence is low</p>
-                <p><strong>💬 Ask Questions:</strong> Use the chat for specific pest management questions</p>
+                <h4>💡 Pro Tips for Best AI Experience:</h4>
+                <p><strong>🤖 Natural Conversation:</strong> Ask questions in natural language - the AI understands context</p>
+                <p><strong>📸 Image + Chat:</strong> Upload a pest photo, then ask specific follow-up questions</p>
+                <p><strong>🔄 Follow-up Questions:</strong> Ask for clarification, alternative treatments, or timing advice</p>
+                <p><strong>🌱 Specify Your Garden:</strong> Mention your location, plants, or garden type for better advice</p>
+                <p><strong>� Learn More:</strong> Ask "why" questions to understand the science behind recommendations</p>
+                </div>
+                
+                <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                <h4>⚙️ Ollama Setup Instructions:</h4>
+                <p>1. Install Ollama from <strong>https://ollama.ai</strong></p>
+                <p>2. Run: <code>ollama pull llama3.1:8b</code></p>
+                <p>3. Start Ollama service: <code>ollama serve</code></p>
+                <p>4. The app will automatically detect and use Ollama for enhanced AI responses!</p>
                 </div>
                 </div>
                 """)
@@ -377,11 +426,18 @@ Ask specific questions in the chat, or consult with a local gardening expert.
                 outputs=[chatbot_interface]
             )
             
+            test_btn.click(
+                fn=self.test_chat_connection,
+                inputs=[chatbot_interface],
+                outputs=[chatbot_interface]
+            )
+            
         return interface
 
 def main():
-    """Main function to run the enhanced app"""
-    print("🚀 Starting Enhanced Organic Pest Management Assistant...")
+    """Main function to run the AI-powered app"""
+    print("🤖 Starting AI-Powered Organic Pest Management Assistant...")
+    print("🔧 Connecting to Ollama LLaMA 3.2:3B for intelligent chat...")
     
     app = PestManagementApp()
     interface = app.create_interface()
@@ -389,7 +445,7 @@ def main():
     # Launch the interface
     interface.launch(
         server_name="0.0.0.0",
-        server_port=7860,
+        server_port=7861,
         share=False,
         inbrowser=True
     )
