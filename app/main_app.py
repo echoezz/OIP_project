@@ -32,7 +32,7 @@ class PestManagementApp:
             self.identifier = None
     
     def identify_pest_and_get_treatment(self, image, history):
-        """Enhanced pest identification with integrated chat"""
+        """Enhanced pest identification without Ollama integration"""
         if image is None:
             return "Please upload an image first.", "", history
         
@@ -74,23 +74,26 @@ class PestManagementApp:
             if history is None:
                 history = []
             
-            # Get treatment advice only if confident enough
+            # Provide basic treatment advice based on identification confidence
             if result['meets_threshold']:
-                treatment_advice = self.chatbot.get_pest_treatment(pest_name)
+                treatment_advice = f"""
+## ✅ **Pest Identified Successfully**
+
+The pest has been identified as **{pest_name.replace('_', ' ').title()}** with {confidence:.1%} confidence.
+
+### 💬 **Get Treatment Recommendations:**
+Use the chat interface below to ask specific questions about treatment methods for this pest.
+"""
                 
-                # Add automatic chat response about the identification
-                auto_message = f"I've identified this as {pest_name.replace('_', ' ')} with {confidence:.1%} confidence. Here's what I recommend for treatment:"
+                # Add simple chat message about identification
+                auto_message = f"✅ I've identified this as **{pest_name.replace('_', ' ').title()}** with {confidence:.1%} confidence. You can ask me specific questions about treatment in the chat below!"
                 history.append({"role": "assistant", "content": auto_message})
-                
-                followup_questions = self.chatbot.get_followup_questions(pest_name)
-                followup_message = "💬 **You can also ask me:**\n" + "\n".join([f"• {q}" for q in followup_questions])
-                history.append({"role": "assistant", "content": followup_message})
                 
             else:
                 treatment_advice = f"""
 ## ⚠️ **Low Confidence Identification**
 
-The model is not confident enough about this identification. Here are some suggestions:
+The model is not confident enough about this identification ({confidence:.1%} confidence).
 
 ### 📸 **Improve Your Photo:**
 • Take a closer, clearer image
@@ -100,25 +103,39 @@ The model is not confident enough about this identification. Here are some sugge
 
 ### 🔍 **General Organic Pest Control:**
 • Inspect plants carefully for accurate identification
-• Apply general organic insecticidal soap
-• Introduce beneficial insects
+• Apply general organic insecticidal soap as a safe first treatment
+• Introduce beneficial insects to your garden
 • Maintain good garden hygiene
 
 ### 💬 **Get Help:**
-Ask specific questions in the chat, or consult with a local gardening expert.
+Use the chat interface to ask general questions about pest management, or consult with a local gardening expert for proper identification.
 """
                 # Add low confidence message to chat
-                auto_message = f"I detected what might be {pest_name.replace('_', ' ')}, but I'm only {confidence:.1%} confident. Could you try a clearer photo or ask me general questions about pest control?"
+                auto_message = f"⚠️ I detected what might be **{pest_name.replace('_', ' ').title()}**, but I'm only {confidence:.1%} confident. Please try a clearer photo or ask me general questions about pest control in the chat!"
                 history.append({"role": "assistant", "content": auto_message})
             
             return identification_result, treatment_advice, history
         else:
             error_msg = f"❌ Could not identify pest: {result.get('error', 'Unknown error')}"
-            error_chat = "I couldn't identify the pest in this image. Please try uploading a clearer photo or ask me general questions about pest management."
+            error_treatment = """
+## ❌ **Identification Failed**
+
+The model could not identify the pest in this image.
+
+### 📸 **Try Again With:**
+• A clearer, higher resolution image
+• Better lighting conditions
+• Close-up view of the pest
+• Different angle or perspective
+
+### 💬 **Alternative Help:**
+Use the chat interface below to describe the pest or ask general questions about pest management.
+"""
+            error_chat = "❌ I couldn't identify the pest in this image. Please try uploading a clearer photo or ask me general questions about pest management in the chat."
             if history is None:
                 history = []
             history.append({"role": "assistant", "content": error_chat})
-            return error_msg, "", history
+            return error_msg, error_treatment, history
     
     def chat_response(self, message, history):
         """Handle chat interactions with new message format"""

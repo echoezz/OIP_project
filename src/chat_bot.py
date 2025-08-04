@@ -69,7 +69,7 @@ Keep responses helpful, practical, and focused on organic/natural methods. Avoid
             )
             
             print(f"📡 Ollama response status: {response.status_code}")
-            
+        
             if response.status_code == 200:
                 result = response.json()
                 response_text = result.get("response", "I'm sorry, I couldn't generate a response.")
