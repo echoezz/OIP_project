@@ -11,12 +11,12 @@ sys.path.append(parent_dir)
 sys.path.append(os.path.join(parent_dir, 'src'))  # Add src directory to path
 
 from src.pest_identifier import PestIdentifier
-from src.chat_bot import OrganicPestChatBot
+from src.rag_chat_bot import RAGChatBot
 
 class PestManagementApp:
     def __init__(self):
         self.identifier = None
-        self.chatbot = OrganicPestChatBot()
+        self.chatbot = RAGChatBot(use_rag=True)
         self.load_model()
     
     def load_model(self):
@@ -145,7 +145,7 @@ Use the chat interface below to describe the pest or ask general questions about
         print(f"🗨️ User message: {message}")
         
         # Get bot response
-        bot_response = self.chatbot.respond_to_question(message)
+        bot_response = self.chatbot.respond(message)
         
         print(f"🤖 Bot response received: {len(bot_response)} characters")
         print(f"🔍 Response preview: {bot_response[:100]}...")
@@ -169,7 +169,7 @@ Use the chat interface below to describe the pest or ask general questions about
         print(f"🚀 Quick question: {question}")
         
         # Get bot response
-        bot_response = self.chatbot.respond_to_question(question)
+        bot_response = self.chatbot.respond(question)
         
         print(f"🤖 Quick response received: {len(bot_response)} characters")
         print(f"🔍 Response preview: {bot_response[:100]}...")
@@ -192,7 +192,7 @@ Use the chat interface below to describe the pest or ask general questions about
         
         if is_connected:
             test_message = "Hello! Can you help me with organic pest control?"
-            test_response = self.chatbot.respond_to_question(test_message)
+            test_response = self.chatbot.respond(test_message)
             
             history.append({"role": "user", "content": "🧪 Test: " + test_message})
             history.append({"role": "assistant", "content": test_response})
@@ -204,6 +204,69 @@ Use the chat interface below to describe the pest or ask general questions about
             print(error_msg)
         
         return history
+    
+    def get_system_status(self):
+        """Get comprehensive system status"""
+        status = self.chatbot.get_system_status()
+        
+        status_text = "## 🔧 System Status\n\n"
+        
+        # Ollama status
+        if status['ollama_connected']:
+            status_text += "✅ **Ollama:** Connected and ready\n"
+        else:
+            status_text += "❌ **Ollama:** Not connected (using fallback responses)\n"
+        
+        # RAG status
+        if status['rag_enabled']:
+            if status['rag_functional']:
+                status_text += "✅ **RAG System:** Enabled and functional\n"
+                if 'rag_collection_info' in status and status['rag_collection_info']:
+                    info = status['rag_collection_info']
+                    status_text += f"   📊 Vector Database: {info.get('points_count', 0)} documents indexed\n"
+            else:
+                status_text += "⚠️ **RAG System:** Enabled but not functional\n"
+        else:
+            status_text += "❌ **RAG System:** Disabled (using basic responses)\n"
+        
+        # Model status
+        if self.identifier:
+            status_text += "✅ **Pest Identification Model:** Loaded and ready\n"
+        else:
+            status_text += "❌ **Pest Identification Model:** Not available\n"
+        
+        # Chat history
+        status_text += f"📝 **Chat History:** {status['conversation_history_length']} messages\n"
+        
+        return status_text
+    
+    def initialize_rag_system(self):
+        """Initialize or re-initialize the RAG system"""
+        if not self.chatbot.use_rag:
+            return "❌ RAG system is not enabled. Please restart the application with RAG support."
+        
+        try:
+            success, message = self.chatbot.initialize_knowledge_base()
+            if success:
+                return f"✅ **RAG System Initialized Successfully**\n\n{message}\n\nThe system can now provide enhanced responses based on your pest management documents."
+            else:
+                return f"❌ **RAG Initialization Failed**\n\n{message}"
+        except Exception as e:
+            return f"❌ **RAG Initialization Error**\n\nError: {str(e)}"
+
+    def reset_vector_database(self):
+        """Reset the vector database to clear old indexed data"""
+        if not self.chatbot.use_rag:
+            return "❌ RAG system is not enabled. Please restart the application with RAG support."
+        
+        try:
+            success, message = self.chatbot.reset_vector_database()
+            if success:
+                return f"✅ **Vector Database Reset Successfully**\n\n{message}\n\nYou can now re-initialize the RAG system with fresh data."
+            else:
+                return f"❌ **Vector Database Reset Failed**\n\n{message}"
+        except Exception as e:
+            return f"❌ **Vector Database Reset Error**\n\nError: {str(e)}"
     
     def create_interface(self):
         """Create the enhanced Gradio interface"""
@@ -335,6 +398,71 @@ Use the chat interface below to describe the pest or ask general questions about
                             value="Treatment recommendations will appear here after identification..."
                         )
             
+            # RAG System Management Tab
+            with gr.Tab("🧠 RAG Knowledge System"):
+                gr.HTML("""
+                <div style="padding: 20px;">
+                <h2>🧠 RAG (Retrieval-Augmented Generation) System</h2>
+                <p>The RAG system enhances AI responses by searching through your pest management documents and research papers.</p>
+                </div>
+                """)
+                
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.HTML("""
+                        <h3>📊 System Status</h3>
+                        <p>Check the current status of all system components:</p>
+                        """)
+                        
+                        status_btn = gr.Button("🔍 Check System Status", variant="secondary")
+                        status_output = gr.Markdown(
+                            value="Click 'Check System Status' to see current system information...",
+                            label="System Status"
+                        )
+                    
+                    with gr.Column(scale=1):
+                        gr.HTML("""
+                        <h3>⚙️ RAG Initialization</h3>
+                        <p>Initialize or refresh the knowledge base from your documents:</p>
+                        """)
+                        
+                        init_btn = gr.Button("🚀 Initialize RAG System", variant="primary")
+                        reset_btn = gr.Button("🗑️ Reset Vector Database", variant="secondary")
+                        
+                        init_output = gr.Markdown(
+                            value="Click 'Initialize RAG System' to process your knowledge base documents...",
+                            label="RAG Initialization Status"
+                        )
+                
+                gr.HTML("""
+                <div style="background-color: #e8f5e8; padding: 15px; border-radius: 8px; margin-top: 20px;">
+                <h4>📚 How RAG Works:</h4>
+                <ul>
+                <li><strong>Document Processing:</strong> Only the Appendix-4-Pest-Management-Framework.pdf is processed</li>
+                <li><strong>Vector Embeddings:</strong> Document text is converted to vector representations using AI</li>
+                <li><strong>Semantic Search:</strong> When you ask questions, relevant document sections are found</li>
+                <li><strong>Enhanced Responses:</strong> AI combines found information with its knowledge for better answers</li>
+                <li><strong>Summarization:</strong> Long chunks are summarized to focus on query-relevant content</li>
+                </ul>
+                </div>
+                
+                <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                <h4>🔧 Requirements:</h4>
+                <ul>
+                <li><strong>Qdrant Vector Database:</strong> Must be running on localhost:6333</li>
+                <li><strong>Knowledge Base:</strong> Appendix-4-Pest-Management-Framework.pdf in knowledge_base/ folder</li>
+                <li><strong>Internet Connection:</strong> Required for downloading embedding models (first time only)</li>
+                </ul>
+                
+                <h4>📝 Setup Instructions:</h4>
+                <p>1. Install and run Qdrant: <code>docker run -p 6333:6333 qdrant/qdrant</code></p>
+                <p>2. Ensure Appendix-4-Pest-Management-Framework.pdf is in the knowledge_base/ folder</p>
+                <p>3. Click 'Reset Vector Database' to clear old data (if needed)</p>
+                <p>4. Click 'Initialize RAG System' to process the PDF document</p>
+                <p>5. Use the chat interface - responses will now include summarized information from the PDF!</p>
+                </div>
+                """)
+            
             # Enhanced About tab
             with gr.Tab("ℹ️ About AI-Powered Version"):
                 gr.HTML("""
@@ -447,6 +575,25 @@ Use the chat interface below to describe the pest or ask general questions about
                 fn=self.test_chat_connection,
                 inputs=[chatbot_interface],
                 outputs=[chatbot_interface]
+            )
+            
+            # RAG System Management event handlers
+            status_btn.click(
+                fn=self.get_system_status,
+                inputs=[],
+                outputs=[status_output]
+            )
+            
+            init_btn.click(
+                fn=self.initialize_rag_system,
+                inputs=[],
+                outputs=[init_output]
+            )
+            
+            reset_btn.click(
+                fn=self.reset_vector_database,
+                inputs=[],
+                outputs=[init_output]
             )
             
         return interface
